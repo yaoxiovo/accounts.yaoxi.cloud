@@ -1,53 +1,16 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google 帐号 - 统一身份认证</title>
-  <link rel="stylesheet" href="accounts-login.css">
-  <!-- Official Cloudflare Turnstile JavaScript API SDK -->
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <title>Google 帐号 - 登录</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><path fill=%22%234285F4%22 d=%22M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z%22/><path fill=%22%2334A853%22 d=%22M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z%22/><path fill=%22%23FBBC05%22 d=%22M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z%22/><path fill=%22%23EA4335%22 d=%22M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z%22/></svg>">
 </head>
 <body>
 
-  <!-- Floating Theme Switcher -->
-  <div class="g-floating-theme">
-    <button class="g-theme-btn" id="g-theme-toggle">
-      <span>☀️ 浅色</span>
-    </button>
-  </div>
-
-  <!-- ========================================================================
-       1:1 Google Error 400 Bad Request View (Shown on Direct Access without Token)
-       ======================================================================== -->
-  <div class="g-400-container" id="g-400-view">
-    <div class="g-400-logo">
-      <svg viewBox="0 0 24 24" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
-        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-      </svg>
-    </div>
-    <h1 class="g-400-title"><strong>400.</strong> 错误。</h1>
-    <p class="g-400-body">
-      请求无效：缺少必需的客户端请求凭证（<code>client_request_token</code>）。
-    </p>
-    <div class="g-400-param-box">
-      Error: 400 Bad Request (Invalid OAuth Handshake)<br>
-      Missing required parameter: client_request_token<br>
-      SSO Gateway: accounts.yaoxi.cloud
-    </div>
-    <p class="g-400-body">
-      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带合法 Token 授权发起的跨域握手，不支持外部直接访问。
-    </p>
-    <div class="g-400-footer-hint">这就是我们知道的全部信息。</div>
-  </div>
-
-  <!-- ========================================================================
-       Central Material 3 Container (Shown ONLY when Token is Valid)
-       ======================================================================== -->
-  <main class="g-accounts-container" id="g-main-app" style="display: none;">
+  <!-- Main Material 3 Sign-in Container -->
+  <main class="g-accounts-container" id="g-main-app">
     <div class="g-card" id="g-card">
       
       <!-- Linear Indeterminate Progress Bar -->
@@ -57,7 +20,7 @@
       </div>
 
       <!-- Top Header Section -->
-      <div>
+      <header class="g-header">
         <!-- Google Official 4-Color G Logo -->
         <div class="g-logo-row">
           <svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
@@ -70,87 +33,55 @@
 
         <!-- Title & Subtitle -->
         <h1 class="g-title" id="g-step-title">登录</h1>
-        <p class="g-subtitle" id="g-step-subtitle">
-          前往 <span class="g-app-domain" id="g-target-app-domain">blog.yaoxi.wiki</span>
-        </p>
+        <p class="g-subtitle" id="g-step-subtitle">使用您的 Google 帐号</p>
 
-        <!-- Account Capsule Chip (Shows entered user on Step 2) -->
-        <div class="g-account-chip" id="g-account-chip" style="display: none;" title="切换账号">
+        <!-- Account Capsule Chip (Shows on Step 2 / Password) -->
+        <div class="g-account-chip" id="g-account-chip" style="display: none;" title="切换账号" role="button" tabindex="0">
           <div class="g-account-avatar" id="g-account-avatar">
             <span id="g-account-initial">U</span>
           </div>
           <span class="g-account-email" id="g-account-email">user@domain.com</span>
-          <svg class="g-account-chevron" viewBox="0 0 24 24">
+          <svg class="g-account-chevron" viewBox="0 0 24 24" width="16" height="16">
             <path d="M7 10l5 5 5-5z"/>
           </svg>
         </div>
-      </div>
+      </header>
 
-      <!-- Main Step Body -->
+      <!-- Main Step Body Form -->
       <form id="g-auth-form" onsubmit="return false;" novalidate>
         
         <!-- ================================================================
-             STEP 1: Real Cloudflare Turnstile Human Verification & Username Input
+             STEP 1: Username / Email Input
              ================================================================ -->
         <div id="step-username" class="g-step-content active">
           
-          <!-- Cloudflare Turnstile Embedded Real Verification Container -->
-          <div class="cf-turnstile-outer">
-            <!-- Native Cloudflare Turnstile Widget -->
-            <div id="cf-real-turnstile" class="cf-turnstile" data-sitekey="0x4AAAAAAAx1X_TEST_OR_PROD_KEY" data-theme="auto" data-callback="onTurnstileSuccess"></div>
-
-            <!-- Authentic Cloudflare Turnstile Interactive Component -->
-            <div class="cf-turnstile-wrapper" id="cf-widget">
-              <div class="cf-turnstile-left" id="cf-click-area">
-                <div class="cf-checkbox" id="cf-checkbox">
-                  <div class="cf-spinner" id="cf-spinner"></div>
-                  <div class="cf-check-icon" id="cf-check-icon">✓</div>
-                </div>
-                <span class="cf-label-text" id="cf-label-text">进行人机身份验证</span>
-              </div>
-
-              <div class="cf-brand-col">
-                <div class="cf-brand-logo">
-                  <svg viewBox="0 0 48 24" fill="none">
-                    <path d="M37.5 13.5c-.3-3.6-3.4-6.5-7.1-6.5-2.4 0-4.6 1.2-5.8 3.1-1-1.3-2.6-2.1-4.4-2.1-3 0-5.5 2.3-5.7 5.2-3.1.4-5.5 3-5.5 6.3 0 3.6 2.9 6.5 6.5 6.5h21.5c3.6 0 6.5-2.9 6.5-6.5 0-3.1-2.1-5.6-5-6z" fill="#F6821F"/>
-                  </svg>
-                  <span>Cloudflare</span>
-                </div>
-                <div class="cf-brand-links">
-                  <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">隐私</a> · 
-                  <a href="https://www.cloudflare.com/website-terms/" target="_blank" rel="noopener">条款</a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Floating Outlined Username Input (Zero Privacy Leak) -->
+          <!-- Floating Outlined Username Input -->
           <div class="g-textfield" id="g-user-textfield">
             <input type="text" class="g-input" id="g-input-username" placeholder=" " autocomplete="username" />
             <label class="g-label" for="g-input-username">电子邮件地址或电话号码</label>
           </div>
           <div class="g-error-callout" id="g-username-error"></div>
 
-          <div style="margin: 8px 0 24px;">
-            <a href="javascript:void(0)" class="g-link" style="font-size: 14px;" onclick="alert('请联系您的管理员获取授权帐号')">忘记了电子邮件地址？</a>
+          <div class="g-forgot-link-row">
+            <a href="javascript:void(0)" class="g-link" id="g-link-forgot-email">忘记了电子邮件地址？</a>
           </div>
 
-          <div style="font-size: 13px; color: var(--g-text-tertiary); line-height: 1.45; margin-bottom: 24px;">
-            不是您的电脑？请使用无痕浏览窗口私密登录。<a href="javascript:void(0)" class="g-link">了解详情</a>
+          <div class="g-guest-notice">
+            不是您的电脑？请使用无痕浏览窗口私密登录。<a href="https://support.google.com/chrome/answer/95464" target="_blank" rel="noopener noreferrer" class="g-link">了解详情</a>
           </div>
 
           <div class="g-actions-row">
-            <button type="button" class="g-btn-text" onclick="alert('生产环境提示：请使用受信任的管理凭证登录')">创建账号</button>
+            <button type="button" class="g-btn-text" id="g-btn-create-account">创建账号</button>
             <button type="button" class="g-btn-primary" id="g-btn-username-next">下一步</button>
           </div>
         </div>
 
         <!-- ================================================================
-             STEP 2: Passkey Biometric Assertion (Strictly NO Creation)
+             STEP 2: Passkey Biometric Assertion
              ================================================================ -->
         <div id="step-passkey" class="g-step-content" style="display: none;">
           
-          <!-- 1:1 Vector Illustration of Official Google Passkey Multi-factor Graphic -->
+          <!-- 1:1 Official Google Passkey Multi-factor Vector Graphic -->
           <div class="g-passkey-illustration-wrap">
             <svg class="g-passkey-svg" viewBox="0 0 240 140" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="52" y="24" width="136" height="96" rx="14" fill="#282a2d" stroke="#3c4043" stroke-width="1.5"/>
@@ -208,21 +139,17 @@
             </svg>
           </div>
 
-          <!-- Prompt Subtitle (1:1 with Screenshot) -->
+          <!-- Prompt Subtitle -->
           <p class="g-passkey-prompt-text">
             您的设备会要求您使用指纹、面孔或屏锁设置来验证身份
           </p>
 
           <div class="g-error-callout" id="g-passkey-error"></div>
 
-          <!-- Bottom Action Buttons (1:1 with Screenshot) -->
+          <!-- Bottom Action Buttons -->
           <div class="g-actions-row">
-            <button type="button" class="g-btn-text" id="g-btn-passkey-other">
-              试试其他方式
-            </button>
-            <button type="button" class="g-btn-primary" id="g-btn-passkey-continue">
-              继续
-            </button>
+            <button type="button" class="g-btn-text" id="g-btn-passkey-other">试试其他方式</button>
+            <button type="button" class="g-btn-primary" id="g-btn-passkey-continue">继续</button>
           </div>
         </div>
 
@@ -233,7 +160,7 @@
           <div class="g-other-methods-list">
             
             <!-- Method 1: Passkey -->
-            <div class="g-method-item" id="opt-method-passkey">
+            <div class="g-method-item" id="opt-method-passkey" role="button" tabindex="0">
               <div class="g-method-icon">🔑</div>
               <div class="g-method-info">
                 <div class="g-method-title">使用您的通行密钥</div>
@@ -242,7 +169,7 @@
             </div>
 
             <!-- Method 2: Password Verification -->
-            <div class="g-method-item" id="opt-method-password">
+            <div class="g-method-item" id="opt-method-password" role="button" tabindex="0">
               <div class="g-method-icon">🔒</div>
               <div class="g-method-info">
                 <div class="g-method-title">输入您的密码</div>
@@ -251,7 +178,7 @@
             </div>
 
             <!-- Method 3: Security Code -->
-            <div class="g-method-item" id="opt-method-code" onclick="alert('安全提示：动态验证码通道已通过加密通道保护')">
+            <div class="g-method-item" id="opt-method-code" role="button" tabindex="0">
               <div class="g-method-icon">📱</div>
               <div class="g-method-info">
                 <div class="g-method-title">获取安全验证码</div>
@@ -274,12 +201,12 @@
           <div class="g-textfield">
             <input type="password" class="g-input" id="g-input-password" placeholder=" " autocomplete="current-password" />
             <label class="g-label" for="g-input-password">输入您的密码</label>
-            <button type="button" class="g-pwd-toggle" id="g-pwd-toggle">👁️</button>
+            <button type="button" class="g-pwd-toggle" id="g-pwd-toggle" title="显示/隐藏密码">👁️</button>
           </div>
           <div class="g-error-callout" id="g-password-error"></div>
           
-          <div style="margin: 8px 0 24px;">
-            <a href="javascript:void(0)" class="g-link" style="font-size: 14px;" onclick="alert('请联系系统管理员重置密码凭证')">忘记了密码？</a>
+          <div class="g-forgot-link-row">
+            <a href="javascript:void(0)" class="g-link" id="g-link-forgot-password">忘记了密码？</a>
           </div>
 
           <div class="g-actions-row">
@@ -289,29 +216,16 @@
         </div>
 
         <!-- ================================================================
-             STEP 4: Real-time Signature Return & Token Screen
+             STEP 4: Success / Authorized View
              ================================================================ -->
-        <div id="step-token" class="g-step-content" style="display: none;">
-          <div class="g-token-screen">
-            <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(168,199,250,0.2); color: #a8c7fa; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px;">
-              ✓
+        <div id="step-success" class="g-step-content" style="display: none;">
+          <div class="g-success-screen">
+            <div class="g-success-icon">✓</div>
+            <h2 class="g-success-title" id="g-success-title">登录成功</h2>
+            <p class="g-success-desc" id="g-success-desc">已成功通过 Google 身份验证</p>
+            <div class="g-actions-row" style="justify-content: center; margin-top: 24px;">
+              <button type="button" class="g-btn-primary" id="g-btn-signout">退出登录</button>
             </div>
-            <h2 style="font-size: 18px; font-weight: 500; margin-bottom: 4px;">身份认证与签名核验通过</h2>
-            <p style="font-size: 13px; color: var(--g-text-secondary); margin-bottom: 12px;">
-              已签署硬件数字签名，正在向 <strong id="g-target-app-label" style="color: var(--g-text-primary);">blog.yaoxi.wiki</strong> 实时回传签名数据
-            </p>
-
-            <div class="g-jwt-container" id="g-jwt-output">
-              <!-- JWT Token Output -->
-            </div>
-
-            <div style="font-size: 13px; color: var(--g-text-secondary); margin-top: 12px;">
-              将在 <span id="g-countdown-sec" style="color: var(--g-text-link); font-weight: bold;">3</span> 秒后自动回传至博客...
-            </div>
-
-            <button type="button" class="g-btn-primary" id="g-btn-immediate-return" style="width: 100%; margin-top: 16px;">
-              立即完成签名回传 🚀
-            </button>
           </div>
         </div>
 
@@ -319,7 +233,7 @@
     </div>
   </main>
 
-  <!-- Page Footer -->
+  <!-- Google Standard Footer -->
   <footer class="g-footer">
     <select class="g-lang-select" id="g-lang-select" aria-label="语言选择">
       <option value="zh-CN" selected>简体中文</option>
@@ -335,6 +249,6 @@
     </div>
   </footer>
 
-  <script src="accounts-login.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
