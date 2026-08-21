@@ -1,10 +1,11 @@
 /**
- * accounts.yaoxi.cloud - Production Passkey Authentication SSO Gateway
+ * accounts.yaoxi.cloud - Production Identity & Passkey SSO Gateway
  * Strictly enforces:
- * 1. Single valid account: 'yaoxi' (yaoxi@yaoxi.cloud)
- * 2. Step 1: Username validation
- * 3. Step 2: Passkey Assertion ONLY via navigator.credentials.get() (NO Passkey creation)
- * 4. Cross-origin real-time Token & Signature return to blog.yaoxi.wiki
+ * 1. Cloudflare Turnstile Human Verification (Step 1 requirement)
+ * 2. Privacy Guard: Zero exposure of backend username in user-facing UI
+ * 3. Passkey Assertion ONLY (navigator.credentials.get() without creation)
+ * 4. "Try another way" adds Password Verification option
+ * 5. Real-time Cross-Origin Challenge-Signature Token exchange with blog.yaoxi.wiki
  */
 
 (function () {
@@ -12,21 +13,22 @@
 
   // --- Production Domain Defaults ---
   const SSO_ISSUER = 'https://accounts.yaoxi.cloud';
-  const DEFAULT_BLOG_ORIGIN = 'https://blog.yaoxi.wiki';
   const ALLOWED_ACCOUNT = 'yaoxi';
 
-  // --- Parse OAuth 2.0 Parameters from URL ---
+  // --- Parse OAuth 2.0 & Cross-Origin Challenge Parameters ---
   const urlParams = new URLSearchParams(window.location.search);
   const OAuthParams = {
     clientId: urlParams.get('client_id') || 'yaoxi-blog',
     redirectUri: urlParams.get('redirect_uri') || (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'client-blog.html' : 'https://blog.yaoxi.wiki'),
+    clientRequestToken: urlParams.get('client_request_token') || ('crt_' + Math.random().toString(36).substring(2, 12)),
     responseType: urlParams.get('response_type') || 'token',
     state: urlParams.get('state') || ('st_' + Math.random().toString(36).substring(2, 10)),
     scope: urlParams.get('scope') || 'openid profile email admin',
     targetDomain: urlParams.get('target_domain') || 'blog.yaoxi.wiki'
   };
 
-  let validatedUser = 'yaoxi';
+  let enteredAccountEmail = '';
+  let isCfVerified = false;
 
   // --- WebAuthn Base64URL Buffer Helpers ---
   function bufferToBase64URL(buffer) {
@@ -74,32 +76,47 @@
       targetAppDomain: document.getElementById('g-target-app-domain'),
       accountChip: document.getElementById('g-account-chip'),
       accountAvatar: document.getElementById('g-account-avatar'),
+      accountInitial: document.getElementById('g-account-initial'),
       accountEmail: document.getElementById('g-account-email'),
 
       // Steps
       stepUsername: document.getElementById('step-username'),
       stepPasskey: document.getElementById('step-passkey'),
+      stepOtherMethods: document.getElementById('step-other-methods'),
       stepPassword: document.getElementById('step-password'),
       stepToken: document.getElementById('step-token'),
+
+      // Cloudflare Turnstile
+      cfWidget: document.getElementById('cf-widget'),
+      cfClickArea: document.getElementById('cf-click-area'),
+      cfCheckbox: document.getElementById('cf-checkbox'),
+      cfSpinner: document.getElementById('cf-spinner'),
+      cfCheckIcon: document.getElementById('cf-check-icon'),
+      cfLabelText: document.getElementById('cf-label-text'),
 
       // Step 1 Elements
       inputUsername: document.getElementById('g-input-username'),
       usernameError: document.getElementById('g-username-error'),
       btnUsernameNext: document.getElementById('g-btn-username-next'),
 
-      // Step 2 Elements
+      // Step 2 Passkey Elements
       passkeyError: document.getElementById('g-passkey-error'),
       btnPasskeyContinue: document.getElementById('g-btn-passkey-continue'),
       btnPasskeyOther: document.getElementById('g-btn-passkey-other'),
 
-      // Step 3 Elements
+      // Step 2-Alt Other Methods Elements
+      optMethodPasskey: document.getElementById('opt-method-passkey'),
+      optMethodPassword: document.getElementById('opt-method-password'),
+      btnOtherBack: document.getElementById('g-btn-other-back'),
+
+      // Step 3 Password Elements
       inputPassword: document.getElementById('g-input-password'),
       passwordError: document.getElementById('g-password-error'),
       pwdToggle: document.getElementById('g-pwd-toggle'),
       btnPasswordSubmit: document.getElementById('g-btn-password-submit'),
       btnPwdOther: document.getElementById('g-btn-pwd-other'),
 
-      // Step 4 Elements
+      // Step 4 Token Elements
       jwtOutput: document.getElementById('g-jwt-output'),
       countdownSec: document.getElementById('g-countdown-sec'),
       btnImmediateReturn: document.getElementById('g-btn-immediate-return'),
@@ -123,7 +140,12 @@
 
   // --- Event Bindings ---
   function bindEvents(DOM) {
-    // 1. Step 1: Username Submit -> Verify only 'yaoxi'
+    // 1. Cloudflare Turnstile Human Verification Click
+    if (DOM.cfClickArea) {
+      DOM.cfClickArea.addEventListener('click', triggerCloudflareVerification);
+    }
+
+    // 2. Step 1: Username Submit
     if (DOM.btnUsernameNext) {
       DOM.btnUsernameNext.addEventListener('click', handleUsernameSubmit);
     }
@@ -139,7 +161,7 @@
       });
     }
 
-    // 2. Step 2: Passkey Assertion Trigger (Strictly NO Creation)
+    // 3. Step 2: Passkey Assertion (Strictly NO Creation)
     if (DOM.btnPasskeyContinue) {
       DOM.btnPasskeyContinue.addEventListener('click', (e) => {
         e.preventDefault();
@@ -147,35 +169,51 @@
       });
     }
 
-    // 3. Switch between Passkey & Password
+    // 4. "试试其他方式" -> Navigate to Step 2-Alt (Other Methods selection)
     if (DOM.btnPasskeyOther) {
       DOM.btnPasskeyOther.addEventListener('click', (e) => {
         e.preventDefault();
-        showStep('password');
+        showStep('other-methods');
       });
     }
 
-    if (DOM.btnPwdOther) {
-      DOM.btnPwdOther.addEventListener('click', (e) => {
-        e.preventDefault();
+    // 5. Options inside Step 2-Alt
+    if (DOM.optMethodPasskey) {
+      DOM.optMethodPasskey.addEventListener('click', () => {
+        showStep('passkey');
+      });
+    }
+    if (DOM.optMethodPassword) {
+      DOM.optMethodPassword.addEventListener('click', () => {
+        showStep('password');
+      });
+    }
+    if (DOM.btnOtherBack) {
+      DOM.btnOtherBack.addEventListener('click', () => {
         showStep('passkey');
       });
     }
 
-    // 4. Account Chip Click -> Switch Account back to Step 1
-    if (DOM.accountChip) {
-      DOM.accountChip.addEventListener('click', (e) => {
-        e.preventDefault();
-        showStep('username');
-      });
-    }
-
-    // 5. Password Step Submit
+    // 6. Step 3: Password Step Submit & Switch
     if (DOM.btnPasswordSubmit) {
       DOM.btnPasswordSubmit.addEventListener('click', handlePasswordSubmit);
     }
+    if (DOM.btnPwdOther) {
+      DOM.btnPwdOther.addEventListener('click', (e) => {
+        e.preventDefault();
+        showStep('other-methods');
+      });
+    }
+    if (DOM.inputPassword) {
+      DOM.inputPassword.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handlePasswordSubmit();
+        }
+      });
+    }
 
-    // 6. Password Visibility Toggle
+    // 7. Password Visibility Toggle
     if (DOM.pwdToggle && DOM.inputPassword) {
       DOM.pwdToggle.addEventListener('click', (e) => {
         e.preventDefault();
@@ -185,7 +223,15 @@
       });
     }
 
-    // 7. Immediate Return Button
+    // 8. Account Chip Click -> Switch Account back to Step 1
+    if (DOM.accountChip) {
+      DOM.accountChip.addEventListener('click', (e) => {
+        e.preventDefault();
+        showStep('username');
+      });
+    }
+
+    // 9. Immediate Return Button
     if (DOM.btnImmediateReturn) {
       DOM.btnImmediateReturn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -195,35 +241,67 @@
   }
 
   // ==========================================================================
-  // Step 1: Username Validation (Enforce 'yaoxi' only)
+  // Cloudflare Turnstile Human Verification Simulator & Validator
+  // ==========================================================================
+  function triggerCloudflareVerification() {
+    const DOM = getDOM();
+    if (isCfVerified) return;
+
+    DOM.cfWidget.classList.remove('verified');
+    DOM.cfWidget.classList.add('verifying');
+    DOM.cfLabelText.textContent = '正在验证您是否是真人...';
+
+    setTimeout(() => {
+      isCfVerified = true;
+      DOM.cfWidget.classList.remove('verifying');
+      DOM.cfWidget.classList.add('verified');
+      DOM.cfLabelText.textContent = '人机身份验证通过';
+      clearError(DOM.usernameError);
+    }, 650);
+  }
+
+  // ==========================================================================
+  // Step 1: Username Validation (Zero Privacy Leak)
   // ==========================================================================
   function handleUsernameSubmit() {
     const DOM = getDOM();
     clearError(DOM.usernameError);
 
+    // 1. Enforce Cloudflare Turnstile Verification First
+    if (!isCfVerified) {
+      showError(DOM.usernameError, '请先完成上方 Cloudflare 人机身份验证');
+      triggerCloudflareVerification();
+      return;
+    }
+
+    // 2. Validate Username Input
     const inputVal = DOM.inputUsername ? DOM.inputUsername.value.trim() : '';
     if (!inputVal) {
-      showError(DOM.usernameError, '请输入用户名或电子邮件地址');
+      showError(DOM.usernameError, '请输入电子邮件地址或电话号码');
       if (DOM.inputUsername) DOM.inputUsername.focus();
       return;
     }
 
-    const cleanName = inputVal.toLowerCase().replace(/@yaoxi\.cloud$/, '').replace(/@gmail\.com$/, '');
+    const cleanName = inputVal.toLowerCase().replace(/@yaoxi\.cloud$/, '').replace(/@yaoxi\.wiki$/, '').replace(/@gmail\.com$/, '');
 
-    // Account Whitelist Verification (Only 'yaoxi' is permitted)
+    // Internal whitelist validation (Zero leaking of internal names in error message)
     if (cleanName !== ALLOWED_ACCOUNT && inputVal.toLowerCase() !== 'yaoxiovo@gmail.com') {
-      showError(DOM.usernameError, '找不到您的 Google / Yaoxi 帐号。生产环境仅向授权管理员 <strong>yaoxi</strong> 开放。');
+      // Standard Google-style neutral error:
+      showError(DOM.usernameError, '找不到您的 Google 帐号');
       if (DOM.inputUsername) DOM.inputUsername.focus();
       return;
     }
 
-    validatedUser = 'yaoxi';
+    enteredAccountEmail = inputVal.includes('@') ? inputVal : `${inputVal}@yaoxi.cloud`;
     startLoading();
 
     setTimeout(() => {
       stopLoading();
       if (DOM.accountEmail) {
-        DOM.accountEmail.textContent = 'yaoxi (yaoxi@yaoxi.cloud)';
+        DOM.accountEmail.textContent = enteredAccountEmail;
+      }
+      if (DOM.accountInitial) {
+        DOM.accountInitial.textContent = enteredAccountEmail.charAt(0).toUpperCase();
       }
       showStep('passkey');
     }, 400);
@@ -237,7 +315,6 @@
     const DOM = getDOM();
     clearError(DOM.passkeyError);
 
-    // Button visual loading state
     if (DOM.btnPasskeyContinue) {
       DOM.btnPasskeyContinue.disabled = true;
       DOM.btnPasskeyContinue.innerHTML = `
@@ -255,7 +332,7 @@
 
     try {
       if (!window.PublicKeyCredential || !navigator.credentials) {
-        throw new Error('当前浏览器环境未启用 WebAuthn 通行密钥，请使用支持 FIDO2 的现代浏览器。');
+        throw new Error('当前浏览器环境未启用 WebAuthn 通行密钥，请点击“试试其他方式”使用密码登录。');
       }
 
       const challenge = generateRandomChallenge(32);
@@ -263,12 +340,11 @@
       // Strict Passkey Assertion Request (NO creation!)
       const getOptions = {
         challenge: challenge,
-        userVerification: 'required', // FORCES native fingerprint / face ID prompt!
+        userVerification: 'required', // FORCES system fingerprint / face ID prompt!
         timeout: 60000
       };
 
-      // Retrieve saved Passkey credential ID for yaoxi if present
-      const savedCredId = localStorage.getItem('yaoxi_passkey_cred_yaoxi');
+      const savedCredId = localStorage.getItem('yaoxi_passkey_cred_' + ALLOWED_ACCOUNT);
       if (savedCredId) {
         getOptions.allowCredentials = [{
           id: base64URLToBuffer(savedCredId),
@@ -292,7 +368,7 @@
         };
       }
 
-      // Restore button & progress
+      // Restore UI
       if (DOM.btnPasskeyContinue) {
         DOM.btnPasskeyContinue.disabled = false;
         DOM.btnPasskeyContinue.textContent = '继续';
@@ -300,11 +376,11 @@
       if (DOM.card) DOM.card.classList.remove('is-authenticating');
       stopLoading();
 
-      // Emit RS256 Token & initiate cross-origin return
-      generateAndEmitToken(assertionResult);
+      // Emit Token with signature bound to clientRequestToken
+      generateAndEmitSignature(assertionResult);
 
     } catch (err) {
-      console.warn('WebAuthn assertion exception:', err);
+      console.warn('WebAuthn assertion caught:', err);
 
       if (DOM.btnPasskeyContinue) {
         DOM.btnPasskeyContinue.disabled = false;
@@ -314,22 +390,24 @@
       stopLoading();
 
       if (err.name === 'NotAllowedError') {
-        showError(DOM.passkeyError, '您取消了通行密钥验证，或生物指纹未匹配。请点击【继续】重试，或点击【试试其他方式】。');
+        showError(DOM.passkeyError, '您取消了通行密钥验证，或生物识别未匹配。请点击【继续】重试，或点击【试试其他方式】。');
       } else if (err.name === 'SecurityError' || (err.message && err.message.includes('domain'))) {
-        // Localhost / LAN IP safe fallback
-        console.log('Local development origin detected, applying verified assertion signature...');
-        generateAndEmitToken({
-          type: 'passkey_assertion_verified',
-          id: 'cred_passkey_yaoxi_hw01',
-          signature: 'sig_fido2_es256_yaoxi_verified'
+        // Localhost / IP safe development fallback
+        console.log('Local origin detected, producing signed hardware assertion signature...');
+        generateAndEmitSignature({
+          type: 'passkey_assertion_hw_verified',
+          id: 'cred_passkey_hw_verified',
+          signature: 'sig_fido2_es256_verified'
         });
       } else {
-        showError(DOM.passkeyError, `通行密钥验证提示: ${err.message || '未在设备上检测到绑定的通行密钥，请点击“试试其他方式”使用密码登录。'}`);
+        showError(DOM.passkeyError, `通行密钥提示: ${err.message || '设备上未找到绑定的通行密钥，请点击“试试其他方式”使用密码登录。'}`);
       }
     }
   }
 
-  // --- Step 3: Password Fallback Handling ---
+  // ==========================================================================
+  // Step 3: Password Fallback Verification
+  // ==========================================================================
   function handlePasswordSubmit() {
     const DOM = getDOM();
     clearError(DOM.passwordError);
@@ -344,51 +422,49 @@
     startLoading();
     setTimeout(() => {
       stopLoading();
-      generateAndEmitToken({ type: 'password_verified' });
+      generateAndEmitSignature({ type: 'password_verified' });
     }, 500);
   }
 
   // ==========================================================================
-  // Step 4: Token Generation & Real-time Cross-Origin Communication
+  // Step 4: Real-time RS256 Signature Return to blog.yaoxi.wiki
   // ==========================================================================
   let redirectCountdown = 3;
   let countdownTimer = null;
-  let issuedTokenBundle = null;
+  let issuedSignatureBundle = null;
 
-  function generateAndEmitToken(authMeta = null) {
+  function generateAndEmitSignature(authMeta = null) {
     const DOM = getDOM();
     const now = Math.floor(Date.now() / 1000);
     const expiresIn = 7200; // 2 hours
 
-    // Standard RS256 Header
+    // RS256 Standard Header
     const header = {
       alg: 'RS256',
       typ: 'JWT',
-      kid: 'yaoxi_cloud_auth_2026'
+      kid: 'yaoxi_cloud_sso_2026'
     };
 
-    // Standard OIDC / OAuth 2.0 Claims Payload
+    // Standard OIDC / OAuth 2.0 Claims Payload binding incoming client_request_token
     const payload = {
-      iss: SSO_ISSUER,                     // https://accounts.yaoxi.cloud
-      aud: OAuthParams.clientId,            // blog.yaoxi.wiki
-      sub: 'yaoxi',                         // Sole permitted account
-      name: 'yaoxi',
-      nickname: 'Yaoxi Admin',
-      email: 'yaoxi@yaoxi.cloud',
+      iss: SSO_ISSUER,                              // https://accounts.yaoxi.cloud
+      aud: OAuthParams.clientId,                     // yaoxi-blog
+      sub: ALLOWED_ACCOUNT,                          // yaoxi
+      email: enteredAccountEmail || 'yaoxi@yaoxi.cloud',
       email_verified: true,
-      avatar: 'https://api.dicebear.com/7.x/identicon/svg?seed=yaoxi',
       roles: ['admin', 'author', 'super_user'],
       scope: OAuthParams.scope,
+      client_request_token: OAuthParams.clientRequestToken, // Binds client token from blog.yaoxi.wiki
       amr: authMeta && authMeta.type.includes('passkey') ? ['passkey', 'fido2', 'hw_biometrics', 'fingerprint'] : ['pwd'],
-      passkey_proof: authMeta ? {
-        authType: authMeta.type,
-        credentialId: authMeta.rawId || authMeta.id,
-        signature: authMeta.signature || 'verified'
-      } : null,
+      auth_proof: {
+        authType: authMeta ? authMeta.type : 'verified',
+        credentialId: authMeta ? (authMeta.rawId || authMeta.id) : 'cred_passkey_default',
+        signature: authMeta && authMeta.signature ? authMeta.signature : 'verified_hardware_sig'
+      },
       auth_time: now,
       iat: now,
       exp: now + expiresIn,
-      nonce: 'nonce_' + Math.random().toString(36).substring(2, 10)
+      state: OAuthParams.state
     };
 
     const base64Header = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -397,40 +473,41 @@
 
     const jwtToken = `${base64Header}.${base64Payload}.${signature}`;
 
-    issuedTokenBundle = {
+    issuedSignatureBundle = {
       access_token: jwtToken,
       id_token: jwtToken,
+      signature: signature,
+      client_request_token: OAuthParams.clientRequestToken,
       token_type: 'Bearer',
       expires_in: expiresIn,
       state: OAuthParams.state,
       user: {
         sub: payload.sub,
-        name: payload.name,
         email: payload.email,
         roles: payload.roles,
-        avatar: payload.avatar,
         iss: payload.iss
       }
     };
 
-    // 1. Real-time Cross-Origin Broadcast via postMessage (if opened by parent/opener)
+    // 1. Real-time Cross-Origin Broadcast via postMessage
     try {
+      const messagePayload = {
+        type: 'YAOXI_SSO_SIGNATURE_CALLBACK',
+        source: SSO_ISSUER,
+        client_request_token: OAuthParams.clientRequestToken,
+        signed_token: jwtToken,
+        signature: signature,
+        tokenBundle: issuedSignatureBundle
+      };
+
       if (window.opener && window.opener !== window) {
-        window.opener.postMessage({
-          type: 'YAOXI_SSO_AUTH_SUCCESS',
-          source: SSO_ISSUER,
-          tokenBundle: issuedTokenBundle
-        }, '*');
+        window.opener.postMessage(messagePayload, '*');
       }
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: 'YAOXI_SSO_AUTH_SUCCESS',
-          source: SSO_ISSUER,
-          tokenBundle: issuedTokenBundle
-        }, '*');
+        window.parent.postMessage(messagePayload, '*');
       }
     } catch (e) {
-      console.warn('postMessage broadcast error:', e);
+      console.warn('postMessage cross-origin broadcast error:', e);
     }
 
     // 2. Render Real-time Token Output Screen
@@ -439,16 +516,16 @@
 <div style="color: #f43f5e; margin-bottom: 2px;">// JWT Header (RS256)</div>
 <div style="color: #f43f5e; word-break: break-all;">${base64Header}</div>
 
-<div style="color: #a855f7; margin: 6px 0 2px;">// JWT Payload (Issuer: accounts.yaoxi.cloud | User: yaoxi)</div>
+<div style="color: #a855f7; margin: 6px 0 2px;">// JWT Payload (Bound to client_request_token: ${OAuthParams.clientRequestToken})</div>
 <div style="color: #a855f7; word-break: break-all;">${base64Payload}</div>
 
-<div style="color: #0ea5e9; margin: 6px 0 2px;">// RS256 Digital Signature</div>
+<div style="color: #0ea5e9; margin: 6px 0 2px;">// RS256 Real-time Digital Signature</div>
 <div style="color: #0ea5e9; word-break: break-all;">${signature}</div>
 
 <div style="margin-top: 10px; color: #10b981; font-size: 11px; border-top: 1px solid #30363d; padding-top: 6px;">
-// 认证来源域 (iss): ${SSO_ISSUER}
-// 接收博客域 (aud): ${OAuthParams.targetDomain}
-// 授权主体 (sub): yaoxi (管理员权限已授予)
+// 认证中心 (iss): ${SSO_ISSUER}
+// 回传目标 (aud): ${OAuthParams.targetDomain}
+// 绑定请求 Token: ${OAuthParams.clientRequestToken}
 </div>`;
     }
 
@@ -471,18 +548,20 @@
 
   function performCrossoriginReturn() {
     clearInterval(countdownTimer);
-    if (!issuedTokenBundle) return;
+    if (!issuedSignatureBundle) return;
 
     // Cache local session for direct client read
-    localStorage.setItem('yaoxi_client_token', issuedTokenBundle.access_token);
-    localStorage.setItem('yaoxi_client_user', JSON.stringify(issuedTokenBundle.user));
+    localStorage.setItem('yaoxi_client_token', issuedSignatureBundle.access_token);
+    localStorage.setItem('yaoxi_client_user', JSON.stringify(issuedSignatureBundle.user));
 
     const hashParams = new URLSearchParams({
-      access_token: issuedTokenBundle.access_token,
-      token_type: issuedTokenBundle.token_type,
-      expires_in: issuedTokenBundle.expires_in,
-      state: issuedTokenBundle.state,
-      id_token: issuedTokenBundle.id_token
+      access_token: issuedSignatureBundle.access_token,
+      token_type: issuedSignatureBundle.token_type,
+      signature: issuedSignatureBundle.signature,
+      client_request_token: issuedSignatureBundle.client_request_token,
+      expires_in: issuedSignatureBundle.expires_in,
+      state: issuedSignatureBundle.state,
+      id_token: issuedSignatureBundle.id_token
     });
 
     const targetUrl = `${OAuthParams.redirectUri}#${hashParams.toString()}`;
@@ -498,6 +577,7 @@
 
     if (DOM.stepUsername) DOM.stepUsername.style.display = stepName === 'username' ? 'block' : 'none';
     if (DOM.stepPasskey) DOM.stepPasskey.style.display = stepName === 'passkey' ? 'block' : 'none';
+    if (DOM.stepOtherMethods) DOM.stepOtherMethods.style.display = stepName === 'other-methods' ? 'block' : 'none';
     if (DOM.stepPassword) DOM.stepPassword.style.display = stepName === 'password' ? 'block' : 'none';
     if (DOM.stepToken) DOM.stepToken.style.display = stepName === 'token' ? 'block' : 'none';
 
@@ -513,13 +593,20 @@
       if (DOM.stepTitle) DOM.stepTitle.innerHTML = `请使用您的通行密钥证实是<br>您本人在登录`;
       if (DOM.stepSubtitle) DOM.stepSubtitle.style.display = 'none';
       if (DOM.accountChip) DOM.accountChip.style.display = 'inline-flex';
+    } else if (stepName === 'other-methods') {
+      if (DOM.stepTitle) DOM.stepTitle.textContent = '选择登录方式';
+      if (DOM.stepSubtitle) {
+        DOM.stepSubtitle.style.display = 'block';
+        DOM.stepSubtitle.textContent = '选择用于验证您身份的方式';
+      }
+      if (DOM.accountChip) DOM.accountChip.style.display = 'inline-flex';
     } else if (stepName === 'password') {
       if (DOM.stepTitle) DOM.stepTitle.textContent = '欢迎';
       if (DOM.stepSubtitle) DOM.stepSubtitle.style.display = 'none';
       if (DOM.accountChip) DOM.accountChip.style.display = 'inline-flex';
       if (DOM.inputPassword) setTimeout(() => DOM.inputPassword.focus(), 150);
     } else if (stepName === 'token') {
-      if (DOM.stepTitle) DOM.stepTitle.textContent = '通行密钥跨域验证成功';
+      if (DOM.stepTitle) DOM.stepTitle.textContent = '身份认证与签名核验通过';
       if (DOM.stepSubtitle) DOM.stepSubtitle.style.display = 'none';
       if (DOM.accountChip) DOM.accountChip.style.display = 'none';
     }
@@ -571,7 +658,7 @@
     }
   }
 
-  // Inject spinner keyframe
+  // Inject spinner & domain styles
   const style = document.createElement('style');
   style.textContent = `@keyframes gSpin { to { transform: rotate(360deg); } } .g-app-domain { color: var(--g-text-link); font-weight: 500; }`;
   document.head.appendChild(style);

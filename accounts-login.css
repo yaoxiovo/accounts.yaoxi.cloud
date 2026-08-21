@@ -1,10 +1,13 @@
 /* ==========================================================================
-   1:1 Pixel-Perfect Google Passkey UI (accounts.google.com/v3)
-   Exact match to Google's Official Passkey Verification Screen
+   accounts.yaoxi.cloud - Production 1:1 Google Material 3 Identity Gateway
+   Features:
+   - Cloudflare Turnstile CAPTCHA Widget
+   - 1:1 Google Passkey Verification & "Other Methods" Selection
+   - Neutral Privacy Architecture (Zero leak of backend account identifiers)
    ========================================================================== */
 
 :root {
-  /* Google Dark Theme (Exact match to Screenshot) */
+  /* Google Dark Theme */
   --g-bg-page: #131314;
   --g-bg-card: #1e1f20;
   --g-border-card: #444746;
@@ -32,6 +35,13 @@
   --g-radius-input: 4px;
   --g-radius-chip: 16px;
 
+  /* Cloudflare Theme Dark */
+  --cf-bg: #191919;
+  --cf-border: #383838;
+  --cf-text: #e0e0e0;
+  --cf-muted: #888888;
+  --cf-orange: #f6821f;
+
   --g-font: "Google Sans", Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
   --g-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
 }
@@ -55,6 +65,12 @@
   --g-chip-bg: #f8fafd;
   --g-chip-border: #dadce0;
   --g-chip-hover: #f1f3f4;
+
+  /* Cloudflare Theme Light */
+  --cf-bg: #fafafa;
+  --cf-border: #e0e0e0;
+  --cf-text: #222222;
+  --cf-muted: #666666;
 }
 
 * {
@@ -77,7 +93,7 @@ body {
   overflow-x: hidden;
 }
 
-/* --- Floating Theme Switcher at Top-Right --- */
+/* Floating Theme Switcher */
 .g-floating-theme {
   position: absolute;
   top: 16px;
@@ -104,7 +120,7 @@ body {
   color: var(--g-text-primary);
 }
 
-/* --- Main Centered Container --- */
+/* Main Centered Container */
 .g-accounts-container {
   flex: 1;
   display: flex;
@@ -113,7 +129,7 @@ body {
   padding: 24px 16px;
 }
 
-/* --- Material 3 Official Card --- */
+/* Material 3 Card */
 .g-card {
   width: 100%;
   max-width: 448px;
@@ -130,7 +146,7 @@ body {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Google Signature Linear Indeterminate Progress Bar */
+/* Linear Progress Bar */
 .g-progress-bar {
   position: absolute;
   top: 0;
@@ -179,7 +195,7 @@ body {
   100% { left: 107%; right: -8%; }
 }
 
-/* --- Card Header & Google Logo --- */
+/* Card Header */
 .g-logo-row {
   margin-bottom: 16px;
 }
@@ -189,11 +205,22 @@ body {
   font-weight: 400;
   color: var(--g-text-primary);
   line-height: 1.35;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   letter-spacing: 0;
 }
 
-/* --- Account Capsule Chip (Exact Match to Screenshot) --- */
+.g-subtitle {
+  font-size: 15px;
+  color: var(--g-text-secondary);
+  margin-bottom: 24px;
+}
+
+.g-app-domain {
+  color: var(--g-text-link);
+  font-weight: 500;
+}
+
+/* Account Capsule Chip */
 .g-account-chip {
   display: inline-flex;
   align-items: center;
@@ -219,16 +246,12 @@ body {
   height: 24px;
   border-radius: 50%;
   background: #a8c7fa;
+  color: #062e6f;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-}
-
-.g-account-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 .g-account-email {
@@ -244,7 +267,122 @@ body {
 }
 
 /* ==========================================================================
-   Google Official Passkey Multi-factor Vector Illustration
+   Cloudflare Turnstile Embedded Human Verification Widget
+   ========================================================================== */
+.cf-turnstile-wrapper {
+  background: var(--cf-bg);
+  border: 1px solid var(--cf-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cf-turnstile-wrapper:hover {
+  border-color: #555;
+}
+
+.cf-turnstile-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.cf-checkbox {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--cf-muted);
+  border-radius: 4px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.cf-turnstile-wrapper.verified .cf-checkbox {
+  border-color: #10b981;
+  background: #10b981;
+}
+
+.cf-check-icon {
+  display: none;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.cf-turnstile-wrapper.verified .cf-check-icon {
+  display: block;
+}
+
+.cf-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--cf-orange);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: gSpin 0.7s linear infinite;
+  display: none;
+}
+
+.cf-turnstile-wrapper.verifying .cf-spinner {
+  display: block;
+}
+.cf-turnstile-wrapper.verifying .cf-checkbox {
+  border-color: var(--cf-orange);
+}
+
+.cf-label-text {
+  font-size: 14px;
+  color: var(--cf-text);
+  font-weight: 500;
+}
+
+.cf-brand-col {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.cf-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cf-text);
+}
+
+.cf-brand-logo svg {
+  width: 20px;
+  height: 14px;
+}
+
+.cf-brand-links {
+  font-size: 10px;
+  color: var(--cf-muted);
+  margin-top: 2px;
+}
+
+.cf-brand-links a {
+  color: var(--cf-muted);
+  text-decoration: none;
+}
+
+.cf-brand-links a:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Google Passkey Vector Graphic & Screen
    ========================================================================== */
 .g-passkey-illustration-wrap {
   width: 100%;
@@ -261,7 +399,6 @@ body {
   display: block;
 }
 
-/* Subtitle below illustration (1:1 with Screenshot) */
 .g-passkey-prompt-text {
   font-size: 13px;
   color: var(--g-text-secondary);
@@ -280,22 +417,68 @@ body {
   100% { transform: scale(1.04); filter: drop-shadow(0 0 16px rgba(168, 199, 250, 0.6)); }
 }
 
-.g-error-callout {
-  background: rgba(242, 184, 181, 0.15);
-  border: 1px solid #f2b8b5;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: #f2b8b5;
-  margin: 0 0 16px;
-  display: none;
-  line-height: 1.4;
+/* ==========================================================================
+   "Choose another way" (选择其他验证方式) Options List
+   ========================================================================== */
+.g-other-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0 24px;
 }
 
-/* --- Floating Outlined Inputs (for Email / Password fallback) --- */
+.g-method-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--g-border-card);
+  background: var(--g-bg-card);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.g-method-item:hover {
+  background: var(--g-chip-hover);
+  border-color: var(--g-text-link);
+}
+
+.g-method-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(168, 199, 250, 0.15);
+  color: var(--g-text-link);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.g-method-info {
+  flex: 1;
+}
+
+.g-method-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--g-text-primary);
+  margin-bottom: 2px;
+}
+
+.g-method-desc {
+  font-size: 12px;
+  color: var(--g-text-secondary);
+}
+
+/* Floating Outlined Inputs */
 .g-textfield {
   position: relative;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .g-input {
@@ -349,7 +532,19 @@ body {
   padding: 4px;
 }
 
-/* --- Bottom Action Buttons (1:1 with Screenshot) --- */
+.g-error-callout {
+  background: rgba(242, 184, 181, 0.15);
+  border: 1px solid #f2b8b5;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #f2b8b5;
+  margin: 0 0 16px;
+  display: none;
+  line-height: 1.4;
+}
+
+/* Actions Row */
 .g-actions-row {
   display: flex;
   align-items: center;
@@ -397,7 +592,24 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
-/* --- Token Output Display Screen --- */
+.g-btn-primary:disabled {
+  background-color: var(--g-btn-disabled-bg);
+  color: var(--g-btn-disabled-text);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.g-link {
+  color: var(--g-text-link);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.g-link:hover {
+  text-decoration: underline;
+}
+
+/* Token Screen */
 .g-token-screen {
   text-align: center;
 }
@@ -418,7 +630,7 @@ body {
   border: 1px solid #30363d;
 }
 
-/* --- Page Footer (1:1 with Screenshot) --- */
+/* Footer */
 .g-footer {
   width: 100%;
   max-width: 448px;
