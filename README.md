@@ -21,13 +21,8 @@ google-login-ui/
 ├── accounts-login.css     # Material 3 暗黑/浅色自适应规范与 1:1 矢量插画样式
 ├── accounts-login.js      # yaoxi 账号校验、WebAuthn 硬件断言与跨域 Token 签发
 ├── client-blog.html       # 🌐 blog.yaoxi.wiki 博客客户端系统 (跨域签名验证面板)
-├── blog-login.html        # 🌟 全功能极客博客认证门户展示页
-├── blog-login.css         # 博客门户样式
-├── blog-login.js          # 博客前端交互逻辑
-├── index.html             # 🎯 Google 登录仿真专属调试台
-├── google-login.css       # Google 官方组件样式
-├── google-login.js        # Google 登录仿真核心组件
-├── png/                   # 1:1 官方参考截图目录
+├── client-blog.css        # 博客客户端样式
+├── push_to_github.sh      # 🚀 GitHub 快速推送脚本
 └── README.md              # 架构说明与集成文档
 ```
 
