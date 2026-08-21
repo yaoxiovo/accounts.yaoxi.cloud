@@ -417,10 +417,10 @@ window.addEventListener('message', (event) => {
 
       const SSO_HANDSHAKE_SECRET = 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
 
-      async function createSignedChallengeToken(targetDomain) {
+      async function createSignedChallengeToken() {
         const timestamp = Date.now().toString();
         const nonce = Math.random().toString(36).substring(2, 10);
-        const payload = `v1.${timestamp}.${nonce}.${targetDomain}`;
+        const payload = `v1.${timestamp}.${nonce}`;
         const enc = new TextEncoder();
         const key = await crypto.subtle.importKey(
           'raw',
@@ -439,10 +439,9 @@ window.addEventListener('message', (event) => {
 
       // Initiate Real-Time SSO Handshake
       async function initiateSSO(isPopup = false) {
-        const targetDomain = 'blog.yaoxi.wiki';
         let generatedToken;
         try {
-          generatedToken = await createSignedChallengeToken(targetDomain);
+          generatedToken = await createSignedChallengeToken();
         } catch (e) {
           generatedToken = 'crt.v1.' + Date.now() + '.' + Math.random().toString(36).substring(2, 10) + '.sigfallback';
         }
@@ -450,6 +449,7 @@ window.addEventListener('message', (event) => {
         pendingRequestToken = generatedToken;
         sessionStorage.setItem('pending_sso_challenge', generatedToken);
 
+        const targetDomain = 'blog.yaoxi.wiki';
         const clientId = 'yaoxi-blog';
         const redirectUri = window.location.href.split('#')[0];
         const state = 'st_' + Math.random().toString(36).substring(2, 10);

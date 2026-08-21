@@ -134,7 +134,8 @@ async function verifyCryptographicTokenSignature(token, targetDomain = 'blog.yao
   if (isNaN(timestamp) || Math.abs(now - timestamp) > 300 * 1000) return false;
 
   try {
-    const payload = `v1.${timestampStr}.${nonce}.${targetDomain}`;
+    const payload1 = `v1.${timestampStr}.${nonce}`;
+    const payload2 = `v1.${timestampStr}.${nonce}.${targetDomain}`;
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey(
       'raw',
@@ -143,12 +144,13 @@ async function verifyCryptographicTokenSignature(token, targetDomain = 'blog.yao
       false,
       ['sign']
     );
-    const signatureBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
-    const expectedSig = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('').substring(0, 32);
+    const sigBuf1 = await crypto.subtle.sign('HMAC', key, enc.encode(payload1));
+    const sigHex1 = Array.from(new Uint8Array(sigBuf1)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
 
-    return receivedSig === expectedSig;
+    const sigBuf2 = await crypto.subtle.sign('HMAC', key, enc.encode(payload2));
+    const sigHex2 = Array.from(new Uint8Array(sigBuf2)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+
+    return receivedSig === sigHex1 || receivedSig === sigHex2;
   } catch (e) {
     return false;
   }
