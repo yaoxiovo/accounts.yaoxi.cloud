@@ -1,9 +1,9 @@
 /* ==========================================================================
    accounts.yaoxi.cloud - Production 1:1 Google Material 3 Identity Gateway
    Features:
-   - Cloudflare Turnstile CAPTCHA Widget
-   - 1:1 Google Passkey Verification & "Other Methods" Selection
-   - Neutral Privacy Architecture (Zero leak of backend account identifiers)
+   - 400 Bad Request Screen (Google Official 1:1 Error 400)
+   - Real Cloudflare Turnstile Embedded Human Verification
+   - Passkey Biometrics & Password Fallback with Zero Identity Leaks
    ========================================================================== */
 
 :root {
@@ -118,6 +118,62 @@ body {
 .g-theme-btn:hover {
   background: var(--g-chip-hover);
   color: var(--g-text-primary);
+}
+
+/* ==========================================================================
+   Google 400 Bad Request Screen (1:1 Official Error View)
+   ========================================================================== */
+.g-400-container {
+  display: none;
+  max-width: 680px;
+  margin: 60px auto 40px;
+  padding: 32px 24px;
+  animation: gFadeIn 0.3s ease-out;
+}
+
+@keyframes gFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.g-400-logo {
+  margin-bottom: 24px;
+}
+
+.g-400-title {
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--g-text-primary);
+  margin-bottom: 16px;
+}
+
+.g-400-title strong {
+  font-weight: 700;
+}
+
+.g-400-body {
+  font-size: 15px;
+  color: var(--g-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.g-400-param-box {
+  background: var(--g-bg-card);
+  border: 1px solid #ea4335;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-family: var(--g-font-mono);
+  font-size: 13px;
+  color: #f28b82;
+  line-height: 1.6;
+}
+
+.g-400-footer-hint {
+  font-size: 13px;
+  color: var(--g-text-tertiary);
+  margin-top: 24px;
 }
 
 /* Main Centered Container */
@@ -267,14 +323,19 @@ body {
 }
 
 /* ==========================================================================
-   Cloudflare Turnstile Embedded Human Verification Widget
+   Real Cloudflare Turnstile Human Verification Container
    ========================================================================== */
+.cf-turnstile-outer {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .cf-turnstile-wrapper {
   background: var(--cf-bg);
   border: 1px solid var(--cf-border);
   border-radius: 8px;
   padding: 12px 16px;
-  margin-bottom: 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -381,9 +442,7 @@ body {
   text-decoration: underline;
 }
 
-/* ==========================================================================
-   Google Passkey Vector Graphic & Screen
-   ========================================================================== */
+/* Passkey Vector Graphic */
 .g-passkey-illustration-wrap {
   width: 100%;
   display: flex;
@@ -407,7 +466,6 @@ body {
   text-align: left;
 }
 
-/* Biometric Active Pulse animation on SVG */
 .g-card.is-authenticating .g-passkey-svg #passkey-lock-center {
   animation: lockPulse 1.2s ease-in-out infinite alternate;
 }
@@ -417,9 +475,7 @@ body {
   100% { transform: scale(1.04); filter: drop-shadow(0 0 16px rgba(168, 199, 250, 0.6)); }
 }
 
-/* ==========================================================================
-   "Choose another way" (选择其他验证方式) Options List
-   ========================================================================== */
+/* Other Methods List */
 .g-other-methods-list {
   display: flex;
   flex-direction: column;
@@ -590,13 +646,6 @@ body {
 .g-btn-primary:hover {
   background-color: var(--g-btn-primary-hover);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.g-btn-primary:disabled {
-  background-color: var(--g-btn-disabled-bg);
-  color: var(--g-btn-disabled-text);
-  cursor: not-allowed;
-  box-shadow: none;
 }
 
 .g-link {
