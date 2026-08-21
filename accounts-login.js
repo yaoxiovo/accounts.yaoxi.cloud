@@ -13,9 +13,13 @@
 (function () {
   'use strict';
 
-  // --- Production Domain Defaults ---
+  // --- Production Domain & Security Defaults ---
   const SSO_ISSUER = 'https://accounts.yaoxi.cloud';
   const ALLOWED_ACCOUNT = 'yaoxi';
+
+  // 🔑 Cloudflare Turnstile 真实账户级 Site Key (在 dash.cloudflare.com -> Turnstile 获取)
+  // 支持: 1. 在此常量直接填入 2. 全局 window.CF_TURNSTILE_SITEKEY 3. URL 参数 ?cf_sitekey=0x4AAAAAA...
+  const CF_TURNSTILE_SITEKEY = window.CF_TURNSTILE_SITEKEY || '0x4AAAAAAAxxxxxxxxxxxxxx';
 
   // --- Parse OAuth 2.0 & Cross-Origin Challenge Parameters ---
   const urlParams = new URLSearchParams(window.location.search);
@@ -200,13 +204,15 @@
 
   function initCloudflareTurnstile() {
     const DOM = getDOM();
-    const sitekey = urlParams.get('cf_sitekey') || '1x00000000000000000000AA';
+    const sitekey = urlParams.get('cf_sitekey') || CF_TURNSTILE_SITEKEY;
 
     if (window.turnstile && DOM.cfTurnstileBox && !cfWidgetId) {
       try {
         cfWidgetId = window.turnstile.render(DOM.cfTurnstileBox, {
           sitekey: sitekey,
           theme: 'auto',
+          action: 'login',
+          cData: OAuthParams.targetDomain,
           callback: window.onTurnstileSuccess,
           'error-callback': window.onTurnstileError,
           'expired-callback': window.onTurnstileExpired
