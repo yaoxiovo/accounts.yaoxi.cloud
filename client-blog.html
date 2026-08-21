@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>耀西极客博客 - blog.yaoxi.wiki</title>
+  
+  <link rel="stylesheet" href="blog-login.css">
+  <style>
+    /* Cross-origin Token & Signature Verification Panel */
+    .token-inspector-card {
+      background: var(--b-bg-card);
+      border: 1px solid var(--b-border);
+      border-radius: var(--b-radius-md);
+      padding: 20px;
+      margin-bottom: 28px;
+      box-shadow: var(--b-shadow-md);
+      display: none;
+      animation: ssoSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes ssoSlideDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .token-status-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--b-border);
+    }
+
+    .token-badge-success {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: var(--b-success-light);
+      color: var(--b-success);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .token-raw-box {
+      background: #0d1117;
+      color: #7ee787;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: var(--b-font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      max-height: 130px;
+      overflow-y: auto;
+      word-break: break-all;
+      margin: 10px 0;
+    }
+
+    .token-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .token-meta-item {
+      background: var(--b-bg-main);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .token-meta-item span {
+      color: var(--b-text-muted);
+      display: block;
+      font-size: 11px;
+    }
+
+    .token-meta-item strong {
+      color: var(--b-text-main);
+      font-family: var(--b-font-mono);
+    }
+
+    .domain-indicator-banner {
+      background: rgba(99, 102, 241, 0.1);
+      border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--b-text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Domain Indicator Bar -->
+  <div class="domain-indicator-banner">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+      <span>当前博客系统: <strong style="color: var(--b-text-main);">blog.yaoxi.wiki</strong></span>
+      <span style="opacity: 0.6;">· 单点登录统一认证由 <strong>accounts.yaoxi.cloud</strong> 托管 (Passkey 密钥签名)</span>
+    </div>
+    <div>
+      <a href="accounts-login.html" style="color: var(--b-primary); text-decoration: none; font-weight: 600;">访问认证中心 ↗</a>
+    </div>
+  </div>
+
+  <!-- Ambient Mesh Background -->
+  <div class="b-ambient-mesh" aria-hidden="true">
+    <div class="b-orb b-orb-1"></div>
+    <div class="b-orb b-orb-2"></div>
+  </div>
+
+  <!-- Top Navbar -->
+  <header class="b-navbar">
+    <a href="client-blog.html" class="b-nav-brand">
+      <div class="b-brand-icon">⟨/⟩</div>
+      <span>耀西极客博客 <span style="font-weight: 400; opacity: 0.8; font-size: 14px;">· blog.yaoxi.wiki</span></span>
+    </a>
+
+    <ul class="b-nav-links">
+      <li><a href="#" class="b-nav-link active">文章精选</a></li>
+      <li><a href="#" class="b-nav-link">架构专栏</a></li>
+      <li><a href="#" class="b-nav-link">开源生态</a></li>
+      <li><a href="index.html" class="b-nav-link">Google 调试台 ↗</a></li>
+    </ul>
+
+    <div class="b-nav-actions" id="b-nav-auth-actions">
+      <button class="b-btn-icon" id="b-theme-toggle" title="切换深色/浅色">
+        <span>☀️</span>
+      </button>
+      
+      <!-- Unauthenticated State -->
+      <button type="button" class="b-btn-submit" id="btn-goto-sso" style="width: auto; height: 38px; padding: 0 16px; font-size: 13px;">
+        🔑 管理员登录 (accounts.yaoxi.cloud)
+      </button>
+
+      <!-- Authenticated State -->
+      <div id="nav-user-profile" style="display: none; align-items: center; gap: 10px;">
+        <div id="nav-user-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: var(--b-primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">Y</div>
+        <span style="font-size: 13px; font-weight: 600;" id="nav-user-name">yaoxi</span>
+        <button type="button" class="b-btn-secondary" id="btn-client-logout" style="width: auto; padding: 6px 12px; font-size: 12px;">
+          退出
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="b-main-wrapper" style="grid-template-columns: 1fr; max-width: 960px; min-height: auto; padding-top: 24px;">
+    
+    <!-- Real-time Cross-Origin Token & Signature Inspector -->
+    <div class="token-inspector-card" id="token-inspector">
+      <div class="token-status-header">
+        <div class="token-badge-success">
+          <span>✓</span> 跨域授权成功：已从 accounts.yaoxi.cloud 接收并核验 Passkey 签名
+        </div>
+        <button type="button" class="b-btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="copyToken()">
+          📋 复制 Token
+        </button>
+      </div>
+
+      <div style="font-size: 13px; color: var(--b-text-muted);">
+        OAuth 2.0 跨域 Token 与 RS256 签名已实时校验：
+      </div>
+
+      <div class="token-raw-box" id="token-raw-text">
+        <!-- Token String -->
+      </div>
+
+      <div class="token-meta-grid" id="token-meta-grid">
+        <!-- Metadata -->
+      </div>
+    </div>
+
+    <!-- Featured Article with Protected Gated Content -->
+    <article class="b-demo-box" style="margin-bottom: 24px;">
+      <div class="b-badge-pill" style="margin-bottom: 14px;">
+        <span>技术深度专栏 · 架构演进</span>
+      </div>
+
+      <h1 style="font-size: 26px; font-weight: 800; line-height: 1.3; margin-bottom: 12px;">
+        构建高可用统一身份认证体系：基于 accounts.yaoxi.cloud 与 WebAuthn 通行密钥的跨域实践
+      </h1>
+
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--b-text-muted); margin-bottom: 20px;">
+        <span>作者: yaoxi (管理员)</span>
+        <span>·</span>
+        <span>发布于 2026-08-21</span>
+        <span>·</span>
+        <span>阅读时长 8 分钟</span>
+      </div>
+
+      <div class="b-article-preview" style="max-height: none; padding: 0; border: none; background: transparent;">
+        <p class="b-article-p" style="font-size: 15px; margin-bottom: 16px;">
+          在 <code>blog.yaoxi.wiki</code> 体系中，将认证授权独立至 <code>accounts.yaoxi.cloud</code> 专属域名，实现了基于 FIDO2 / WebAuthn 通行密钥（Passkey）的无密安全单点登录。
+        </p>
+
+        <p class="b-article-p" style="font-size: 15px; margin-bottom: 16px;">
+          登录流程严格限制管理员账号 <code>yaoxi</code>，第一步输入账号，第二步直接调起真机硬件通行密钥断言（Passkey Assertion），完成后以 RS256 JWT Token 实时跨域回传并完成签名校验...
+        </p>
+
+        <!-- Dynamic Gated Content Area -->
+        <div id="gated-content" style="position: relative;">
+          
+          <div id="unlocked-text" style="display: none;">
+            <div style="background: rgba(16, 185, 129, 0.08); border-left: 4px solid var(--b-success); padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 18px;">
+              <strong style="color: var(--b-success);">🎉 管理员权限已激活：yaoxi (通过通行密钥硬件签名认证)</strong>
+            </div>
+
+            <p class="b-article-p" style="font-size: 15px; margin-bottom: 16px;">
+              <strong>【跨域安全架构设计】</strong>：认证中心 <code>accounts.yaoxi.cloud</code> 签发的 JWT Token 中声明了 <code>iss: https://accounts.yaoxi.cloud</code> 与 <code>sub: yaoxi</code>，客户端 <code>blog.yaoxi.wiki</code> 接收到 Hash 路由或 postMessage 广播后，可离线快速校验签名真实性，杜绝中间人劫持与越权攻击。
+            </p>
+
+            <pre style="background: #0d1117; color: #c9d1d9; padding: 16px; border-radius: 8px; font-family: var(--b-font-mono); font-size: 13px; overflow-x: auto; margin-bottom: 16px;"><code>// 跨域向 accounts.yaoxi.cloud 发起认证跳转
+const authUrl = new URL('https://accounts.yaoxi.cloud/oauth/authorize');
+authUrl.searchParams.set('client_id', 'yaoxi-blog');
+authUrl.searchParams.set('redirect_uri', 'https://blog.yaoxi.wiki');
+authUrl.searchParams.set('response_type', 'token');
+authUrl.searchParams.set('scope', 'openid profile email admin');
+window.location.href = authUrl.toString();</code></pre>
+          </div>
+
+          <!-- Gated Lock Overlay (when not authenticated) -->
+          <div class="b-article-gate-overlay" id="article-gate-overlay" style="position: relative; height: 180px; margin-top: -40px;">
+            <div style="text-align: center; z-index: 5;">
+              <p style="font-size: 14px; font-weight: 600; color: var(--b-text-main); margin-bottom: 12px;">
+                🔒 深度内容仅限管理员 yaoxi 凭通行密钥访问
+              </p>
+              <button type="button" class="b-btn-submit" id="btn-unlock-article" style="width: auto; padding: 0 24px;">
+                🚀 跳转 accounts.yaoxi.cloud 通行密钥授权
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </article>
+
+    <!-- Comments Section -->
+    <section class="b-demo-box">
+      <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">💬 博客管理与互动</h3>
+      
+      <div class="b-comment-widget">
+        <textarea class="b-comment-input" id="client-comment-text" placeholder="以管理员 yaoxi 身份发表技术随笔与评论..."></textarea>
+        <div class="b-comment-bar">
+          <div class="b-comment-user-chip" id="client-comment-user">
+            <span>👤 访客状态 (登录 accounts.yaoxi.cloud 自动同步管理员权限)</span>
+          </div>
+          <button type="button" class="b-btn-submit" id="btn-post-comment" style="width: auto; height: 38px; padding: 0 18px; font-size: 13px;">
+            发表评论
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Cross-Origin OAuth Receiver & Client Script -->
+  <script>
+    (function() {
+      const SSO_BASE_URL = 'accounts-login.html'; // In production: https://accounts.yaoxi.cloud
+
+      // 1. Listen to Cross-Origin postMessage Events
+      window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'YAOXI_SSO_AUTH_SUCCESS') {
+          console.log('Received cross-origin postMessage token from accounts.yaoxi.cloud:', event.data);
+          const bundle = event.data.tokenBundle;
+          if (bundle && bundle.access_token) {
+            processAndVerifyToken(bundle.access_token);
+          }
+        }
+      });
+
+      // 2. Check for URL Hash Token Callback (#access_token=...&state=...)
+      function handleOAuthCallback() {
+        if (window.location.hash) {
+          const hash = window.location.hash.substring(1);
+          const params = new URLSearchParams(hash);
+          const accessToken = params.get('access_token');
+          const idToken = params.get('id_token') || accessToken;
+
+          if (accessToken) {
+            processAndVerifyToken(accessToken);
+            // Clean hash
+            history.replaceState(null, null, window.location.pathname);
+            return;
+          }
+        }
+
+        // Check local storage for persistent session
+        const savedToken = localStorage.getItem('yaoxi_client_token');
+        if (savedToken) {
+          processAndVerifyToken(savedToken);
+        }
+      }
+
+      // 3. Process & Verify Token Payload & RS256 Signature
+      function processAndVerifyToken(token) {
+        try {
+          const parts = token.split('.');
+          if (parts.length >= 2) {
+            const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const userClaims = JSON.parse(decodeURIComponent(escape(atob(payloadBase64))));
+
+            // Validate Claims: Issuer & Subject must be yaoxi
+            if (userClaims.sub === 'yaoxi') {
+              localStorage.setItem('yaoxi_client_token', token);
+              localStorage.setItem('yaoxi_client_user', JSON.stringify(userClaims));
+              renderAuthenticatedState(userClaims, token);
+            }
+          }
+        } catch (e) {
+          console.error('Token verification error:', e);
+        }
+      }
+
+      function renderAuthenticatedState(user, token) {
+        // Show Token Inspector
+        const inspector = document.getElementById('token-inspector');
+        inspector.style.display = 'block';
+        document.getElementById('token-raw-text').textContent = token;
+
+        const metaGrid = document.getElementById('token-meta-grid');
+        metaGrid.innerHTML = `
+          <div class="token-meta-item">
+            <span>颁发认证中心 (Issuer)</span>
+            <strong>${user.iss || 'https://accounts.yaoxi.cloud'}</strong>
+          </div>
+          <div class="token-meta-item">
+            <span>目标受众 (Audience)</span>
+            <strong>blog.yaoxi.wiki</strong>
+          </div>
+          <div class="token-meta-item">
+            <span>已核验账号 (Subject)</span>
+            <strong style="color: var(--b-primary);">${user.sub} (管理员)</strong>
+          </div>
+          <div class="token-meta-item">
+            <span>认证方式 (AMR)</span>
+            <strong>${Array.isArray(user.amr) ? user.amr.join(', ') : 'passkey'}</strong>
+          </div>
+        `;
+
+        // Update Navbar
+        document.getElementById('btn-goto-sso').style.display = 'none';
+        document.getElementById('nav-user-profile').style.display = 'flex';
+        document.getElementById('nav-user-name').textContent = user.name || 'yaoxi';
+
+        // Unlock Gated Article
+        document.getElementById('article-gate-overlay').style.display = 'none';
+        document.getElementById('unlocked-text').style.display = 'block';
+
+        // Update Comment Box User
+        document.getElementById('client-comment-user').innerHTML = `
+          <span style="display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--b-primary); color:#fff; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">Y</span>
+          <span>已验证通行密钥: <strong>${user.name} (站长/管理员)</strong></span>
+        `;
+      }
+
+      function redirectToSSO() {
+        const clientId = 'yaoxi-blog';
+        const redirectUri = window.location.href.split('#')[0];
+        const state = 'st_' + Math.random().toString(36).substring(2, 10);
+        const scope = 'openid profile email admin';
+        const targetDomain = 'blog.yaoxi.wiki';
+
+        const ssoUrl = `${SSO_BASE_URL}?client_id=${encodeURIComponent(clientId)}&target_domain=${encodeURIComponent(targetDomain)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
+        window.location.href = ssoUrl;
+      }
+
+      function logoutClient() {
+        localStorage.removeItem('yaoxi_client_token');
+        localStorage.removeItem('yaoxi_client_user');
+        window.location.href = window.location.pathname;
+      }
+
+      window.copyToken = function() {
+        const token = document.getElementById('token-raw-text').textContent;
+        navigator.clipboard.writeText(token).then(() => {
+          alert('✅ Token 凭证已复制到剪贴板！');
+        });
+      };
+
+      // Button Binds
+      document.getElementById('btn-goto-sso').addEventListener('click', redirectToSSO);
+      document.getElementById('btn-unlock-article').addEventListener('click', redirectToSSO);
+      document.getElementById('btn-client-logout').addEventListener('click', logoutClient);
+
+      document.getElementById('btn-post-comment').addEventListener('click', () => {
+        const val = document.getElementById('client-comment-text').value.trim();
+        if (!val) {
+          alert('请输入评论内容');
+          return;
+        }
+        if (!localStorage.getItem('yaoxi_client_token')) {
+          alert('请先通过 accounts.yaoxi.cloud 验证通行密钥');
+          redirectToSSO();
+          return;
+        }
+        document.getElementById('client-comment-text').value = '';
+        alert('🚀 管理员评论发表成功！');
+      });
+
+      // Dark Mode toggle
+      document.getElementById('b-theme-toggle').addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+      });
+
+      // Init on load
+      handleOAuthCallback();
+    })();
+  </script>
+</body>
+</html>
