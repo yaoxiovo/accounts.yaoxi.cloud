@@ -1,8 +1,20 @@
 /**
  * 100% 免费版 Cloudflare Worker / Snippet 边缘 400 拦截器
+ * 严格白名单过滤: 除合法的 SSO 授权凭证参数外，携带任何非法/额外参数均直接拦截下发 HTTP 400 Bad Request
  * 适用环境: Cloudflare Free 免费版计划 (每日 100,000 次免费请求额度，无需升级付费版)
  * 路由绑定: accounts.yaoxi.cloud/*
  */
+
+const ALLOWED_PARAMS = new Set([
+  'client_request_token',
+  'client_id',
+  'redirect_uri',
+  'target_domain',
+  'response_type',
+  'scope',
+  'state',
+  'cf_sitekey'
+]);
 
 const GOOGLE_400_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -97,15 +109,14 @@ const GOOGLE_400_HTML = `<!DOCTYPE html>
     </div>
     <h1 class="g-400-title"><strong>400.</strong> 错误。</h1>
     <p class="g-400-body">
-      请求无效：缺少必需的客户端请求凭证（<code>client_request_token</code>）。
+      请求无效：参数不合法或缺少必需的客户端请求凭证（<code>client_request_token</code>）。
     </p>
     <div class="g-400-param-box">
-      HTTP Status: 400 Bad Request (Invalid OAuth Handshake)<br>
-      Missing required parameter: client_request_token<br>
+      HTTP Status: 400 Bad Request (Invalid OAuth Handshake Parameter)<br>
       SSO Gateway: accounts.yaoxi.cloud
     </div>
     <p class="g-400-body">
-      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带合法 Token 授权发起的跨域握手，不支持外部直接访问。
+      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带合法 Token 授权发起的跨域握手，不支持任何额外或未授权参数。
     </p>
     <div class="g-400-footer-hint">这就是我们知道的全部信息。</div>
   </div>
@@ -130,11 +141,24 @@ export default {
       return fetch(request);
     }
 
-    // 2. 检查页面请求是否携带 client_request_token
-    const token = url.searchParams.get('client_request_token');
+    // 2. 严格参数白名单校验: 携带任何非法/未授权参数直接返回 400
+    for (const key of url.searchParams.keys()) {
+      if (!ALLOWED_PARAMS.has(key)) {
+        return new Response(GOOGLE_400_HTML, {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'X-Robots-Tag': 'noindex, nofollow'
+          }
+        });
+      }
+    }
 
-    // 3. 无 Token 直接拦截，下发真实 HTTP 400 Bad Request
-    if (!token || token.trim() === '') {
+    // 3. 检查页面请求是否携带合法的 client_request_token
+    const token = url.searchParams.get('client_request_token');
+    if (!token || token.trim() === '' || !/^[a-zA-Z0-9_\-\.]{6,128}$/.test(token)) {
       return new Response(GOOGLE_400_HTML, {
         status: 400,
         statusText: 'Bad Request',
@@ -146,7 +170,7 @@ export default {
       });
     }
 
-    // 4. 携带合法 Token -> 放行至 Pages / 原源站静态页面
+    // 4. 携带合法授权参数 -> 放行至登录中心页面
     return fetch(request);
   }
 };

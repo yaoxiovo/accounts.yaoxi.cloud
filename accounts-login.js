@@ -147,17 +147,44 @@
     const DOM = getDOM();
 
     // ========================================================================
-    // REQUIREMENT 1: Validate Inbound Blog Token & Enforce One-Time Consumption
+    // REQUIREMENT: Strict URL Parameter Whitelisting (Any unauthorized param -> 400)
     // ========================================================================
-    if (!OAuthParams.clientRequestToken || OAuthParams.clientRequestToken.trim() === '') {
-      console.warn('Direct access detected without client_request_token -> Rendering Google Error 400');
+    const ALLOWED_PARAMS = new Set([
+      'client_request_token',
+      'client_id',
+      'redirect_uri',
+      'target_domain',
+      'response_type',
+      'scope',
+      'state',
+      'cf_sitekey'
+    ]);
+
+    // 1. Reject ANY parameter outside the strict whitelist
+    for (const key of urlParams.keys()) {
+      if (!ALLOWED_PARAMS.has(key)) {
+        console.warn('Unauthorized parameter detected:', key);
+        if (DOM.view400) {
+          DOM.view400.style.display = 'block';
+          const bodyEl = DOM.view400.querySelector('.g-400-body');
+          if (bodyEl) bodyEl.innerHTML = `请求无效：检测到未授权的非法请求参数（<code>${key}</code>）。`;
+        }
+        if (DOM.mainApp) DOM.mainApp.style.display = 'none';
+        bindTheme(DOM);
+        return;
+      }
+    }
+
+    // 2. Validate Inbound Blog Token Presence & Format
+    if (!OAuthParams.clientRequestToken || OAuthParams.clientRequestToken.trim() === '' || !/^[a-zA-Z0-9_\-\.]{6,128}$/.test(OAuthParams.clientRequestToken)) {
+      console.warn('Direct access or invalid client_request_token -> Rendering Google Error 400');
       if (DOM.view400) DOM.view400.style.display = 'block';
       if (DOM.mainApp) DOM.mainApp.style.display = 'none';
       bindTheme(DOM);
       return;
     }
 
-    // Check if token was already consumed/revoked to prevent replay attacks
+    // 3. Check if token was already consumed/revoked to prevent replay attacks
     const consumedTokens = JSON.parse(sessionStorage.getItem('yaoxi_consumed_tokens') || '[]');
     const isLocallyConsumed = localStorage.getItem('yaoxi_last_consumed_token_' + OAuthParams.clientRequestToken);
     if (consumedTokens.includes(OAuthParams.clientRequestToken) || isLocallyConsumed) {
@@ -172,7 +199,7 @@
       return;
     }
 
-    // Valid Active Token Present -> Accept requesting domain
+    // Valid Active Handshake Parameters Present -> Accept requesting domain
     if (DOM.view400) DOM.view400.style.display = 'none';
     if (DOM.mainApp) DOM.mainApp.style.display = 'flex';
 

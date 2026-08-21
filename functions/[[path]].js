@@ -1,7 +1,18 @@
 /**
- * Cloudflare Pages Catch-All Route Handler
- * Enforces real HTTP 400 Bad Request status code on direct access without client_request_token
+ * Cloudflare Pages Root Route Handler (/)
+ * Enforces strict URL parameter whitelist & HTTP 400 Bad Request status code
  */
+
+const ALLOWED_PARAMS = new Set([
+  'client_request_token',
+  'client_id',
+  'redirect_uri',
+  'target_domain',
+  'response_type',
+  'scope',
+  'state',
+  'cf_sitekey'
+]);
 
 const GOOGLE_400_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -96,15 +107,14 @@ const GOOGLE_400_HTML = `<!DOCTYPE html>
     </div>
     <h1 class="g-400-title"><strong>400.</strong> 错误。</h1>
     <p class="g-400-body">
-      请求无效：缺少必需的客户端请求凭证（<code>client_request_token</code>）。
+      请求无效：参数不合法或缺少必需的客户端请求凭证（<code>client_request_token</code>）。
     </p>
     <div class="g-400-param-box">
-      HTTP Status: 400 Bad Request (Invalid OAuth Handshake)<br>
-      Missing required parameter: client_request_token<br>
+      HTTP Status: 400 Bad Request (Invalid Parameter)<br>
       SSO Gateway: accounts.yaoxi.cloud
     </div>
     <p class="g-400-body">
-      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带合法 Token 授权发起的跨域握手，不支持外部直接访问。
+      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带合法 Token 授权发起的跨域握手，不支持任何额外或未授权参数。
     </p>
     <div class="g-400-footer-hint">这就是我们知道的全部信息。</div>
   </div>
@@ -113,37 +123,37 @@ const GOOGLE_400_HTML = `<!DOCTYPE html>
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
-  const pathname = url.pathname.toLowerCase();
 
-  // 1. Static assets pass-through
-  if (
-    pathname.endsWith('.css') ||
-    pathname.endsWith('.js') ||
-    pathname.endsWith('.png') ||
-    pathname.endsWith('.jpg') ||
-    pathname.endsWith('.ico') ||
-    pathname.endsWith('.svg') ||
-    pathname.endsWith('.json') ||
-    pathname.includes('client-blog.html')
-  ) {
-    return context.next();
+  // 1. 严格参数白名单校验: 携带任何非法/额外参数立即 400
+  for (const key of url.searchParams.keys()) {
+    if (!ALLOWED_PARAMS.has(key)) {
+      return new Response(GOOGLE_400_HTML, {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'X-Robots-Tag': 'noindex, nofollow'
+        }
+      });
+    }
   }
 
-  // 2. Validate client_request_token
+  // 2. 必须包含合法的 client_request_token
   const token = url.searchParams.get('client_request_token');
-
-  if (!token || token.trim() === '') {
+  if (!token || token.trim() === '' || !/^[a-zA-Z0-9_\-\.]{6,128}$/.test(token)) {
     return new Response(GOOGLE_400_HTML, {
       status: 400,
       statusText: 'Bad Request',
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
         'X-Robots-Tag': 'noindex, nofollow'
       }
     });
   }
 
-  // 3. Valid token present -> serve the page
   return context.next();
 }
