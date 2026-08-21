@@ -1,5 +1,5 @@
 /**
- * Cloudflare Pages Root Route Handler (/)
+ * Cloudflare Pages Root Middleware Handler (_middleware.js)
  * Enforces strict URL parameter whitelist & HMAC-SHA256 cryptographic signature verification
  */
 
@@ -13,7 +13,17 @@ const ALLOWED_PARAMS = new Set([
   'response_type',
   'scope',
   'state',
-  'cf_sitekey'
+  'nonce',
+  'prompt',
+  'code_challenge',
+  'code_challenge_method',
+  'cf_sitekey',
+  'cf_chl_tk',
+  'lang',
+  'theme',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign'
 ]);
 
 const GOOGLE_400_HTML = `<!DOCTYPE html>
@@ -131,7 +141,7 @@ async function verifyCryptographicTokenSignature(token, targetDomain = 'blog.yao
   const [_, version, timestampStr, nonce, receivedSig] = parts;
   const timestamp = parseInt(timestampStr, 10);
   const now = Date.now();
-  if (isNaN(timestamp) || Math.abs(now - timestamp) > 300 * 1000) return false;
+  if (isNaN(timestamp) || Math.abs(now - timestamp) > 900 * 1000) return false;
 
   try {
     const payload1 = `v1.${timestampStr}.${nonce}`;
@@ -158,8 +168,27 @@ async function verifyCryptographicTokenSignature(token, targetDomain = 'blog.yao
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
+  const pathname = url.pathname.toLowerCase();
 
-  // 1. 严格参数白名单校验: 携带任何非法/额外参数立即 400
+  // 1. 放行静态资源文件 (.css, .js, .png, .ico, .svg 等) 与 OPTIONS 预检
+  if (
+    context.request.method === 'OPTIONS' ||
+    pathname.endsWith('.css') ||
+    pathname.endsWith('.js') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.jpg') ||
+    pathname.endsWith('.jpeg') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.json') ||
+    pathname.endsWith('.woff') ||
+    pathname.endsWith('.woff2') ||
+    pathname.includes('client-blog')
+  ) {
+    return context.next();
+  }
+
+  // 2. 严格参数白名单校验: 携带任何非法/额外参数立即 400
   for (const key of url.searchParams.keys()) {
     if (!ALLOWED_PARAMS.has(key)) {
       return new Response(GOOGLE_400_HTML, {
@@ -175,7 +204,7 @@ export async function onRequest(context) {
     }
   }
 
-  // 2. 严格校验 client_request_token 密码学防伪签名
+  // 3. 严格校验 client_request_token 密码学防伪签名
   const token = url.searchParams.get('client_request_token');
   const targetDomain = url.searchParams.get('target_domain') || 'blog.yaoxi.wiki';
   const isValidSignature = await verifyCryptographicTokenSignature(token, targetDomain);

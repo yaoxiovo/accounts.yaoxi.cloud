@@ -159,10 +159,10 @@
     const [_, version, timestampStr, nonce, receivedSig] = parts;
     const timestamp = parseInt(timestampStr, 10);
 
-    // 1. Time TTL check (5 minutes max window)
+    // 1. Time TTL check (15 minutes max window)
     const now = Date.now();
-    if (isNaN(timestamp) || Math.abs(now - timestamp) > 300 * 1000) {
-      return { valid: false, reason: '客户端请求凭证已过期（Token Expired，有效窗口 5 分钟）' };
+    if (isNaN(timestamp) || Math.abs(now - timestamp) > 900 * 1000) {
+      return { valid: false, reason: '客户端请求凭证已过期（Token Expired，有效窗口 15 分钟）' };
     }
 
     // 2. Cryptographic HMAC-SHA256 verification
@@ -207,7 +207,17 @@
       'response_type',
       'scope',
       'state',
-      'cf_sitekey'
+      'nonce',
+      'prompt',
+      'code_challenge',
+      'code_challenge_method',
+      'cf_sitekey',
+      'cf_chl_tk',
+      'lang',
+      'theme',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign'
     ]);
 
     // 1. Reject ANY parameter outside the strict whitelist

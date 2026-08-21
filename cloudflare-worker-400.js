@@ -15,7 +15,17 @@ const ALLOWED_PARAMS = new Set([
   'response_type',
   'scope',
   'state',
-  'cf_sitekey'
+  'nonce',
+  'prompt',
+  'code_challenge',
+  'code_challenge_method',
+  'cf_sitekey',
+  'cf_chl_tk',
+  'lang',
+  'theme',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign'
 ]);
 
 const GOOGLE_400_HTML = `<!DOCTYPE html>

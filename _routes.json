@@ -3,5 +3,18 @@
   "include": [
     "/*"
   ],
-  "exclude": []
+  "exclude": [
+    "/*.css",
+    "/*.js",
+    "/*.png",
+    "/*.jpg",
+    "/*.jpeg",
+    "/*.svg",
+    "/*.ico",
+    "/*.json",
+    "/*.webp",
+    "/*.woff",
+    "/*.woff2",
+    "/client-blog.html"
+  ]
 }
