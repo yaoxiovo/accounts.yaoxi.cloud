@@ -6,7 +6,7 @@
   <title>Google 帐号 - 统一身份认证</title>
   <link rel="stylesheet" href="accounts-login.css">
   <!-- Official Cloudflare Turnstile JavaScript API SDK -->
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoaded" async defer></script>
 </head>
 <body>
 
@@ -96,32 +96,7 @@
           
           <!-- Cloudflare Turnstile Embedded Real Verification Container -->
           <div class="cf-turnstile-outer">
-            <!-- Native Cloudflare Turnstile Widget -->
-            <div id="cf-real-turnstile" class="cf-turnstile" data-sitekey="0x4AAAAAAAx1X_TEST_OR_PROD_KEY" data-theme="auto" data-callback="onTurnstileSuccess"></div>
-
-            <!-- Authentic Cloudflare Turnstile Interactive Component -->
-            <div class="cf-turnstile-wrapper" id="cf-widget">
-              <div class="cf-turnstile-left" id="cf-click-area">
-                <div class="cf-checkbox" id="cf-checkbox">
-                  <div class="cf-spinner" id="cf-spinner"></div>
-                  <div class="cf-check-icon" id="cf-check-icon">✓</div>
-                </div>
-                <span class="cf-label-text" id="cf-label-text">进行人机身份验证</span>
-              </div>
-
-              <div class="cf-brand-col">
-                <div class="cf-brand-logo">
-                  <svg viewBox="0 0 48 24" fill="none">
-                    <path d="M37.5 13.5c-.3-3.6-3.4-6.5-7.1-6.5-2.4 0-4.6 1.2-5.8 3.1-1-1.3-2.6-2.1-4.4-2.1-3 0-5.5 2.3-5.7 5.2-3.1.4-5.5 3-5.5 6.3 0 3.6 2.9 6.5 6.5 6.5h21.5c3.6 0 6.5-2.9 6.5-6.5 0-3.1-2.1-5.6-5-6z" fill="#F6821F"/>
-                  </svg>
-                  <span>Cloudflare</span>
-                </div>
-                <div class="cf-brand-links">
-                  <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">隐私</a> · 
-                  <a href="https://www.cloudflare.com/website-terms/" target="_blank" rel="noopener">条款</a>
-                </div>
-              </div>
-            </div>
+            <div id="cf-turnstile-box" class="cf-turnstile" data-sitekey="1x00000000000000000000AA" data-theme="auto" data-callback="onTurnstileSuccess" data-error-callback="onTurnstileError" data-expired-callback="onTurnstileExpired"></div>
           </div>
 
           <!-- Floating Outlined Username Input (Zero Privacy Leak) -->

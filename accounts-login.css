@@ -326,120 +326,18 @@ body {
    Real Cloudflare Turnstile Human Verification Container
    ========================================================================== */
 .cf-turnstile-outer {
-  margin-bottom: 20px;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.cf-turnstile-wrapper {
-  background: var(--cf-bg);
-  border: 1px solid var(--cf-border);
-  border-radius: 8px;
-  padding: 12px 16px;
+  margin-bottom: 24px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  user-select: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.cf-turnstile-wrapper:hover {
-  border-color: #555;
-}
-
-.cf-turnstile-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.cf-checkbox {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--cf-muted);
-  border-radius: 4px;
-  background: transparent;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.cf-turnstile-wrapper.verified .cf-checkbox {
-  border-color: #10b981;
-  background: #10b981;
-}
-
-.cf-check-icon {
-  display: none;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.cf-turnstile-wrapper.verified .cf-check-icon {
-  display: block;
-}
-
-.cf-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--cf-orange);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: gSpin 0.7s linear infinite;
-  display: none;
-}
-
-.cf-turnstile-wrapper.verifying .cf-spinner {
-  display: block;
-}
-.cf-turnstile-wrapper.verifying .cf-checkbox {
-  border-color: var(--cf-orange);
-}
-
-.cf-label-text {
-  font-size: 14px;
-  color: var(--cf-text);
-  font-weight: 500;
-}
-
-.cf-brand-col {
-  text-align: right;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.cf-brand-logo {
-  display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--cf-text);
+  min-height: 65px;
+  width: 100%;
 }
 
-.cf-brand-logo svg {
-  width: 20px;
-  height: 14px;
-}
-
-.cf-brand-links {
-  font-size: 10px;
-  color: var(--cf-muted);
-  margin-top: 2px;
-}
-
-.cf-brand-links a {
-  color: var(--cf-muted);
-  text-decoration: none;
-}
-
-.cf-brand-links a:hover {
-  text-decoration: underline;
+.cf-turnstile-outer .cf-turnstile,
+.cf-turnstile-outer iframe {
+  border-radius: 8px;
+  max-width: 100%;
 }
 
 /* Passkey Vector Graphic */

@@ -107,12 +107,7 @@
       stepToken: document.getElementById('step-token'),
 
       // Cloudflare Turnstile Elements
-      cfWidget: document.getElementById('cf-widget'),
-      cfClickArea: document.getElementById('cf-click-area'),
-      cfCheckbox: document.getElementById('cf-checkbox'),
-      cfSpinner: document.getElementById('cf-spinner'),
-      cfCheckIcon: document.getElementById('cf-check-icon'),
-      cfLabelText: document.getElementById('cf-label-text'),
+      cfTurnstileBox: document.getElementById('cf-turnstile-box'),
 
       // Step 1 Username Elements
       inputUsername: document.getElementById('g-input-username'),
@@ -176,46 +171,50 @@
   }
 
   // ==========================================================================
-  // REQUIREMENT 2: Cloudflare Turnstile Human Verification Initialization
+  // REQUIREMENT 2: Real Cloudflare Turnstile Human Verification Integration
   // ==========================================================================
+  let cfWidgetId = null;
+
+  window.onTurnstileSuccess = function (token) {
+    console.log('[Cloudflare Turnstile] Real human verification succeeded, token:', token);
+    cfTurnstileToken = token;
+    isCfVerified = true;
+    const DOM = getDOM();
+    clearError(DOM.usernameError);
+  };
+
+  window.onTurnstileError = function (errorCode) {
+    console.warn('[Cloudflare Turnstile] Verification error / blocked:', errorCode);
+  };
+
+  window.onTurnstileExpired = function () {
+    console.log('[Cloudflare Turnstile] Verification expired.');
+    cfTurnstileToken = '';
+    isCfVerified = false;
+  };
+
+  window.onTurnstileLoaded = function () {
+    console.log('[Cloudflare Turnstile] SDK loaded.');
+    initCloudflareTurnstile();
+  };
+
   function initCloudflareTurnstile() {
     const DOM = getDOM();
+    const sitekey = urlParams.get('cf_sitekey') || '1x00000000000000000000AA';
 
-    window.onTurnstileSuccess = function (token) {
-      console.log('Cloudflare Turnstile token received:', token);
-      cfTurnstileToken = token;
-      markTurnstileVerified(DOM);
-    };
-
-    window.onTurnstileError = function () {
-      console.warn('Cloudflare Turnstile issue encountered, enabling fallback verification.');
-    };
-
-    if (DOM.cfClickArea) {
-      DOM.cfClickArea.addEventListener('click', () => {
-        if (isCfVerified) return;
-        DOM.cfWidget.classList.remove('verified');
-        DOM.cfWidget.classList.add('verifying');
-        DOM.cfLabelText.textContent = '正在验证您是否是真人...';
-
-        setTimeout(() => {
-          cfTurnstileToken = '0x4AAAAAA_' + Math.random().toString(36).substring(2, 16);
-          markTurnstileVerified(DOM);
-        }, 600);
-      });
+    if (window.turnstile && DOM.cfTurnstileBox && !cfWidgetId) {
+      try {
+        cfWidgetId = window.turnstile.render(DOM.cfTurnstileBox, {
+          sitekey: sitekey,
+          theme: 'auto',
+          callback: window.onTurnstileSuccess,
+          'error-callback': window.onTurnstileError,
+          'expired-callback': window.onTurnstileExpired
+        });
+      } catch (e) {
+        console.log('[Cloudflare Turnstile] Auto-rendered or already bound:', e);
+      }
     }
-  }
-
-  function markTurnstileVerified(DOM) {
-    isCfVerified = true;
-    if (DOM.cfWidget) {
-      DOM.cfWidget.classList.remove('verifying');
-      DOM.cfWidget.classList.add('verified');
-    }
-    if (DOM.cfLabelText) {
-      DOM.cfLabelText.textContent = '人机身份验证通过';
-    }
-    clearError(DOM.usernameError);
   }
 
   // --- Event Bindings ---
@@ -323,9 +322,8 @@
     clearError(DOM.usernameError);
 
     // 1. Enforce Cloudflare Turnstile Verification First
-    if (!isCfVerified) {
+    if (!isCfVerified || !cfTurnstileToken) {
       showError(DOM.usernameError, '请先完成上方 Cloudflare 人机身份验证');
-      if (DOM.cfClickArea) DOM.cfClickArea.click();
       return;
     }
 
