@@ -2,11 +2,12 @@
  * accounts.yaoxi.cloud - Production Identity & Passkey SSO Gateway
  * Strictly enforces:
  * 1. Direct Access 400 Check: Missing client_request_token directly renders Google Error 400!
- * 2. Real Cloudflare Turnstile Embedded Human Verification (Step 1 requirement)
- * 3. Privacy Guard: Zero exposure of backend username in user-facing UI
- * 4. Passkey Assertion ONLY (navigator.credentials.get() without creation)
- * 5. "Try another way" adds Password Verification option
- * 6. Real-time Cross-Origin Challenge-Signature Token exchange with blog.yaoxi.wiki
+ * 2. NO DOMAIN WHITELIST RESTRICTION: Any domain carrying a valid client_request_token is accepted for testing!
+ * 3. Real Cloudflare Turnstile Embedded Human Verification (Step 1 requirement)
+ * 4. Privacy Guard: Zero exposure of backend username in user-facing UI
+ * 5. Passkey Assertion ONLY (navigator.credentials.get() without creation)
+ * 6. "Try another way" adds Password Verification option
+ * 7. Real-time Cross-Origin Challenge-Signature Token exchange with requesting domain
  */
 
 (function () {
@@ -19,15 +20,28 @@
   // --- Parse OAuth 2.0 & Cross-Origin Challenge Parameters ---
   const urlParams = new URLSearchParams(window.location.search);
   const rawClientRequestToken = urlParams.get('client_request_token');
-  
+
+  // Dynamic redirect URI and target domain resolution (ANY domain accepted as long as token exists)
+  let resolvedRedirectUri = urlParams.get('redirect_uri') || document.referrer || 'client-blog.html';
+  let resolvedTargetDomain = urlParams.get('target_domain');
+
+  if (!resolvedTargetDomain && resolvedRedirectUri) {
+    try {
+      resolvedTargetDomain = new URL(resolvedRedirectUri).hostname;
+    } catch (e) {
+      resolvedTargetDomain = 'blog.yaoxi.wiki';
+    }
+  }
+  if (!resolvedTargetDomain) resolvedTargetDomain = 'blog.yaoxi.wiki';
+
   const OAuthParams = {
     clientId: urlParams.get('client_id') || 'yaoxi-blog',
-    redirectUri: urlParams.get('redirect_uri') || (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1') ? 'client-blog.html' : 'https://blog.yaoxi.wiki'),
+    redirectUri: resolvedRedirectUri,
     clientRequestToken: rawClientRequestToken,
     responseType: urlParams.get('response_type') || 'token',
     state: urlParams.get('state') || ('st_' + Math.random().toString(36).substring(2, 10)),
     scope: urlParams.get('scope') || 'openid profile email admin',
-    targetDomain: urlParams.get('target_domain') || 'blog.yaoxi.wiki'
+    targetDomain: resolvedTargetDomain
   };
 
   let enteredAccountEmail = '';
@@ -145,7 +159,7 @@
       return;
     }
 
-    // Valid Token Handshake Present -> Show Main Login Form
+    // Valid Token Present -> Accept ANY requesting domain
     if (DOM.view400) DOM.view400.style.display = 'none';
     if (DOM.mainApp) DOM.mainApp.style.display = 'flex';
 
@@ -167,7 +181,6 @@
   function initCloudflareTurnstile() {
     const DOM = getDOM();
 
-    // Global callback for real Cloudflare Turnstile SDK
     window.onTurnstileSuccess = function (token) {
       console.log('Cloudflare Turnstile token received:', token);
       cfTurnstileToken = token;
@@ -175,10 +188,9 @@
     };
 
     window.onTurnstileError = function () {
-      console.warn('Cloudflare Turnstile encountered an issue, enabling fallback verification.');
+      console.warn('Cloudflare Turnstile issue encountered, enabling fallback verification.');
     };
 
-    // Also support interactive simulation click on the turnstile widget
     if (DOM.cfClickArea) {
       DOM.cfClickArea.addEventListener('click', () => {
         if (isCfVerified) return;
@@ -232,7 +244,7 @@
       });
     }
 
-    // 3. "试试其他方式" -> Navigate to Step 2-Alt (Other Methods selection)
+    // 3. "试试其他方式" -> Navigate to Step 2-Alt
     if (DOM.btnPasskeyOther) {
       DOM.btnPasskeyOther.addEventListener('click', (e) => {
         e.preventDefault();
@@ -379,10 +391,9 @@
 
       const challenge = generateRandomChallenge(32);
 
-      // Strict Passkey Assertion Request (NO creation!)
       const getOptions = {
         challenge: challenge,
-        userVerification: 'required', // FORCES system fingerprint / face ID prompt!
+        userVerification: 'required',
         timeout: 60000
       };
 
@@ -395,7 +406,6 @@
         }];
       }
 
-      // Execute navigator.credentials.get() ONLY
       const assertion = await navigator.credentials.get({ publicKey: getOptions });
       
       if (assertion) {
@@ -418,7 +428,6 @@
       if (DOM.card) DOM.card.classList.remove('is-authenticating');
       stopLoading();
 
-      // Emit Token with signature bound to clientRequestToken
       generateAndEmitSignature(assertionResult);
 
     } catch (err) {
@@ -434,7 +443,6 @@
       if (err.name === 'NotAllowedError') {
         showError(DOM.passkeyError, '您取消了通行密钥验证，或生物识别未匹配。请点击【继续】重试，或点击【试试其他方式】。');
       } else if (err.name === 'SecurityError' || (err.message && err.message.includes('domain'))) {
-        // Localhost / IP safe development fallback
         console.log('Local origin detected, producing signed hardware assertion signature...');
         generateAndEmitSignature({
           type: 'passkey_assertion_hw_verified',
@@ -469,7 +477,7 @@
   }
 
   // ==========================================================================
-  // Step 4: Real-time RS256 Signature Return to blog.yaoxi.wiki
+  // Step 4: Real-time RS256 Signature Return to Calling Domain
   // ==========================================================================
   let redirectCountdown = 3;
   let countdownTimer = null;
@@ -480,14 +488,12 @@
     const now = Math.floor(Date.now() / 1000);
     const expiresIn = 7200; // 2 hours
 
-    // RS256 Standard Header
     const header = {
       alg: 'RS256',
       typ: 'JWT',
       kid: 'yaoxi_cloud_sso_2026'
     };
 
-    // Standard OIDC / OAuth 2.0 Claims Payload binding incoming client_request_token
     const payload = {
       iss: SSO_ISSUER,                              // https://accounts.yaoxi.cloud
       aud: OAuthParams.clientId,                     // yaoxi-blog
@@ -496,7 +502,7 @@
       email_verified: true,
       roles: ['admin', 'author', 'super_user'],
       scope: OAuthParams.scope,
-      client_request_token: OAuthParams.clientRequestToken, // Binds client token from blog.yaoxi.wiki
+      client_request_token: OAuthParams.clientRequestToken, // Binds incoming request token
       cf_turnstile_token: cfTurnstileToken,
       amr: authMeta && authMeta.type.includes('passkey') ? ['passkey', 'fido2', 'hw_biometrics', 'fingerprint'] : ['pwd'],
       auth_proof: {
@@ -593,7 +599,6 @@
     clearInterval(countdownTimer);
     if (!issuedSignatureBundle) return;
 
-    // Cache local session for direct client read
     localStorage.setItem('yaoxi_client_token', issuedSignatureBundle.access_token);
     localStorage.setItem('yaoxi_client_user', JSON.stringify(issuedSignatureBundle.user));
 
@@ -701,12 +706,10 @@
     }
   }
 
-  // Inject spinner & domain styles
   const style = document.createElement('style');
   style.textContent = `@keyframes gSpin { to { transform: rotate(360deg); } } .g-app-domain { color: var(--g-text-link); font-weight: 500; }`;
   document.head.appendChild(style);
 
-  // Run on DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
