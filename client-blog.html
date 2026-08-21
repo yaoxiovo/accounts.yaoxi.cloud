@@ -327,9 +327,33 @@ window.addEventListener('message', (event) => {
         }
       }
 
-      // 3. Process & Verify Signature & Claims
+      // 3. Process & Verify Signature & Claims with Single-Use Invalidation
       function processAndVerifySignature(token, reqToken, sig) {
         try {
+          const consumedList = JSON.parse(sessionStorage.getItem('consumed_sso_challenges') || '[]');
+          const activeChallenge = sessionStorage.getItem('pending_sso_challenge') || pendingRequestToken;
+
+          if (reqToken && consumedList.includes(reqToken)) {
+            console.warn('[Client Blog] Rejected replay attack: challenge token already consumed:', reqToken);
+            return;
+          }
+
+          if (activeChallenge && reqToken && activeChallenge !== reqToken) {
+            console.warn('[Client Blog] Challenge token mismatch. Expected:', activeChallenge, 'Received:', reqToken);
+            return;
+          }
+
+          // Invalidate and consume the token immediately
+          if (reqToken || activeChallenge) {
+            const tokenToConsume = reqToken || activeChallenge;
+            consumedList.push(tokenToConsume);
+            if (consumedList.length > 50) consumedList.shift();
+            sessionStorage.setItem('consumed_sso_challenges', JSON.stringify(consumedList));
+            sessionStorage.removeItem('pending_sso_challenge');
+            pendingRequestToken = null;
+            console.log('[Client Blog] Challenge token successfully consumed and voided:', tokenToConsume);
+          }
+
           const parts = token.split('.');
           if (parts.length >= 2) {
             const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');

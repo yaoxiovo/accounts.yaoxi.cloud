@@ -147,7 +147,7 @@
     const DOM = getDOM();
 
     // ========================================================================
-    // REQUIREMENT 1: Validate Inbound Blog Token -> If Missing, Render 400 Directly!
+    // REQUIREMENT 1: Validate Inbound Blog Token & Enforce One-Time Consumption
     // ========================================================================
     if (!OAuthParams.clientRequestToken || OAuthParams.clientRequestToken.trim() === '') {
       console.warn('Direct access detected without client_request_token -> Rendering Google Error 400');
@@ -157,7 +157,22 @@
       return;
     }
 
-    // Valid Token Present -> Accept ANY requesting domain
+    // Check if token was already consumed/revoked to prevent replay attacks
+    const consumedTokens = JSON.parse(sessionStorage.getItem('yaoxi_consumed_tokens') || '[]');
+    const isLocallyConsumed = localStorage.getItem('yaoxi_last_consumed_token_' + OAuthParams.clientRequestToken);
+    if (consumedTokens.includes(OAuthParams.clientRequestToken) || isLocallyConsumed) {
+      console.warn('Replay attack detected: client_request_token already consumed/revoked');
+      if (DOM.view400) {
+        DOM.view400.style.display = 'block';
+        const bodyEl = DOM.view400.querySelector('.g-400-body');
+        if (bodyEl) bodyEl.innerHTML = '请求无效：该客户端请求凭证（<code>client_request_token</code>）已完成授权并已作废，禁止二次重放。';
+      }
+      if (DOM.mainApp) DOM.mainApp.style.display = 'none';
+      bindTheme(DOM);
+      return;
+    }
+
+    // Valid Active Token Present -> Accept requesting domain
     if (DOM.view400) DOM.view400.style.display = 'none';
     if (DOM.mainApp) DOM.mainApp.style.display = 'flex';
 
@@ -540,6 +555,21 @@
         iss: payload.iss
       }
     };
+
+    // Mark client_request_token as consumed/revoked immediately upon issuance
+    if (OAuthParams.clientRequestToken) {
+      try {
+        const consumedTokens = JSON.parse(sessionStorage.getItem('yaoxi_consumed_tokens') || '[]');
+        if (!consumedTokens.includes(OAuthParams.clientRequestToken)) {
+          consumedTokens.push(OAuthParams.clientRequestToken);
+          if (consumedTokens.length > 50) consumedTokens.shift();
+          sessionStorage.setItem('yaoxi_consumed_tokens', JSON.stringify(consumedTokens));
+        }
+        localStorage.setItem('yaoxi_last_consumed_token_' + OAuthParams.clientRequestToken, Date.now().toString());
+      } catch (e) {
+        console.warn('Failed to persist consumed token mark:', e);
+      }
+    }
 
     // 1. Real-time Cross-Origin Broadcast via postMessage
     try {
