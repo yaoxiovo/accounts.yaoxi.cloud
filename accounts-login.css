@@ -1,9 +1,13 @@
 /* ==========================================================================
-   Google Account Sign-In - Material 3 1:1 Production Stylesheet
+   accounts.yaoxi.cloud - Production 1:1 Google Material 3 Identity Gateway
+   Features:
+   - 400 Bad Request Screen (Google Official 1:1 Error 400)
+   - Real Cloudflare Turnstile Embedded Human Verification
+   - Passkey Biometrics & Password Fallback with Zero Identity Leaks
    ========================================================================== */
 
 :root {
-  /* Google Dark Theme by Default */
+  /* Google Dark Theme */
   --g-bg-page: #131314;
   --g-bg-card: #1e1f20;
   --g-border-card: #444746;
@@ -31,31 +35,15 @@
   --g-radius-input: 4px;
   --g-radius-chip: 16px;
 
+  /* Cloudflare Theme Dark */
+  --cf-bg: #191919;
+  --cf-border: #383838;
+  --cf-text: #e0e0e0;
+  --cf-muted: #888888;
+  --cf-orange: #f6821f;
+
   --g-font: "Google Sans", Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
   --g-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --g-bg-page: #f8fafd;
-    --g-bg-card: #ffffff;
-    --g-border-card: #dadce0;
-    --g-text-primary: #1f1f1f;
-    --g-text-secondary: #444746;
-    --g-text-tertiary: #5e5e5e;
-    --g-text-link: #0b57d0;
-    
-    --g-btn-primary-bg: #0b57d0;
-    --g-btn-primary-text: #ffffff;
-    --g-btn-primary-hover: #0842a0;
-
-    --g-input-border: #747775;
-    --g-input-border-focus: #0b57d0;
-    
-    --g-chip-bg: #f8fafd;
-    --g-chip-border: #dadce0;
-    --g-chip-hover: #f1f3f4;
-  }
 }
 
 [data-theme="light"] {
@@ -77,30 +65,12 @@
   --g-chip-bg: #f8fafd;
   --g-chip-border: #dadce0;
   --g-chip-hover: #f1f3f4;
-}
 
-[data-theme="dark"] {
-  --g-bg-page: #131314;
-  --g-bg-card: #1e1f20;
-  --g-border-card: #444746;
-  --g-text-primary: #e3e3e3;
-  --g-text-secondary: #c4c7c5;
-  --g-text-tertiary: #8e918f;
-  --g-text-link: #a8c7fa;
-  
-  --g-btn-primary-bg: #a8c7fa;
-  --g-btn-primary-text: #062e6f;
-  --g-btn-primary-hover: #c2e7ff;
-  --g-btn-disabled-bg: rgba(227, 227, 227, 0.12);
-  --g-btn-disabled-text: rgba(227, 227, 227, 0.38);
-
-  --g-input-border: #8e918f;
-  --g-input-border-focus: #a8c7fa;
-  --g-input-bg: transparent;
-  
-  --g-chip-bg: #1e1f20;
-  --g-chip-border: #444746;
-  --g-chip-hover: #28292a;
+  /* Cloudflare Theme Light */
+  --cf-bg: #fafafa;
+  --cf-border: #e0e0e0;
+  --cf-text: #222222;
+  --cf-muted: #666666;
 }
 
 * {
@@ -119,8 +89,91 @@ body {
   justify-content: space-between;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.25s, color 0.25s;
+  transition: background-color 0.3s, color 0.3s;
   overflow-x: hidden;
+}
+
+/* Floating Theme Switcher */
+.g-floating-theme {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+}
+
+.g-theme-btn {
+  background: var(--g-bg-card);
+  border: 1px solid var(--g-border-card);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--g-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.g-theme-btn:hover {
+  background: var(--g-chip-hover);
+  color: var(--g-text-primary);
+}
+
+/* ==========================================================================
+   Google 400 Bad Request Screen (1:1 Official Error View)
+   ========================================================================== */
+.g-400-container {
+  display: none;
+  max-width: 680px;
+  margin: 60px auto 40px;
+  padding: 32px 24px;
+  animation: gFadeIn 0.3s ease-out;
+}
+
+@keyframes gFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.g-400-logo {
+  margin-bottom: 24px;
+}
+
+.g-400-title {
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--g-text-primary);
+  margin-bottom: 16px;
+}
+
+.g-400-title strong {
+  font-weight: 700;
+}
+
+.g-400-body {
+  font-size: 15px;
+  color: var(--g-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.g-400-param-box {
+  background: var(--g-bg-card);
+  border: 1px solid #ea4335;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-family: var(--g-font-mono);
+  font-size: 13px;
+  color: #f28b82;
+  line-height: 1.6;
+}
+
+.g-400-footer-hint {
+  font-size: 13px;
+  color: var(--g-text-tertiary);
+  margin-top: 24px;
 }
 
 /* Main Centered Container */
@@ -198,26 +251,22 @@ body {
   100% { left: 107%; right: -8%; }
 }
 
-/* Header Section */
-.g-header {
-  margin-bottom: 8px;
-}
-
+/* Card Header */
 .g-logo-row {
   margin-bottom: 16px;
 }
 
 .g-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 400;
   color: var(--g-text-primary);
-  line-height: 1.33;
+  line-height: 1.35;
   margin-bottom: 10px;
   letter-spacing: 0;
 }
 
 .g-subtitle {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--g-text-secondary);
   margin-bottom: 24px;
 }
@@ -252,8 +301,8 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--g-text-link);
-  color: var(--g-btn-primary-text);
+  background: #a8c7fa;
+  color: #062e6f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -268,7 +317,129 @@ body {
 }
 
 .g-account-chevron {
+  width: 16px;
+  height: 16px;
   fill: var(--g-text-secondary);
+}
+
+/* ==========================================================================
+   Real Cloudflare Turnstile Human Verification Container
+   ========================================================================== */
+.cf-turnstile-outer {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cf-turnstile-wrapper {
+  background: var(--cf-bg);
+  border: 1px solid var(--cf-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cf-turnstile-wrapper:hover {
+  border-color: #555;
+}
+
+.cf-turnstile-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.cf-checkbox {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--cf-muted);
+  border-radius: 4px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.cf-turnstile-wrapper.verified .cf-checkbox {
+  border-color: #10b981;
+  background: #10b981;
+}
+
+.cf-check-icon {
+  display: none;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.cf-turnstile-wrapper.verified .cf-check-icon {
+  display: block;
+}
+
+.cf-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--cf-orange);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: gSpin 0.7s linear infinite;
+  display: none;
+}
+
+.cf-turnstile-wrapper.verifying .cf-spinner {
+  display: block;
+}
+.cf-turnstile-wrapper.verifying .cf-checkbox {
+  border-color: var(--cf-orange);
+}
+
+.cf-label-text {
+  font-size: 14px;
+  color: var(--cf-text);
+  font-weight: 500;
+}
+
+.cf-brand-col {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.cf-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cf-text);
+}
+
+.cf-brand-logo svg {
+  width: 20px;
+  height: 14px;
+}
+
+.cf-brand-links {
+  font-size: 10px;
+  color: var(--cf-muted);
+  margin-top: 2px;
+}
+
+.cf-brand-links a {
+  color: var(--cf-muted);
+  text-decoration: none;
+}
+
+.cf-brand-links a:hover {
+  text-decoration: underline;
 }
 
 /* Passkey Vector Graphic */
@@ -288,7 +459,7 @@ body {
 }
 
 .g-passkey-prompt-text {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--g-text-secondary);
   line-height: 1.45;
   margin-bottom: 24px;
@@ -415,7 +586,6 @@ body {
   color: var(--g-text-secondary);
   cursor: pointer;
   padding: 4px;
-  font-size: 16px;
 }
 
 .g-error-callout {
@@ -428,17 +598,6 @@ body {
   margin: 0 0 16px;
   display: none;
   line-height: 1.4;
-}
-
-.g-forgot-link-row {
-  margin: 8px 0 24px;
-}
-
-.g-guest-notice {
-  font-size: 14px;
-  color: var(--g-text-secondary);
-  line-height: 1.45;
-  margin-bottom: 28px;
 }
 
 /* Actions Row */
@@ -499,38 +658,28 @@ body {
   text-decoration: underline;
 }
 
-/* Success Screen */
-.g-success-screen {
+/* Token Screen */
+.g-token-screen {
   text-align: center;
-  padding: 16px 0;
 }
 
-.g-success-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(168, 199, 250, 0.2);
-  color: var(--g-text-link);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: bold;
-  margin: 0 auto 16px;
+.g-jwt-container {
+  text-align: left;
+  background: #0d1117;
+  color: #c9d1d9;
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--g-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 16px 0;
+  max-height: 170px;
+  overflow-y: auto;
+  word-break: break-all;
+  border: 1px solid #30363d;
 }
 
-.g-success-title {
-  font-size: 22px;
-  font-weight: 400;
-  margin-bottom: 8px;
-}
-
-.g-success-desc {
-  font-size: 14px;
-  color: var(--g-text-secondary);
-}
-
-/* Google Standard Footer */
+/* Footer */
 .g-footer {
   width: 100%;
   max-width: 448px;
@@ -568,10 +717,6 @@ body {
   color: var(--g-text-secondary);
 }
 
-@keyframes gSpin {
-  to { transform: rotate(360deg); }
-}
-
 @media (max-width: 480px) {
   .g-card {
     border: none;
@@ -582,5 +727,10 @@ body {
   
   .g-footer {
     padding: 16px 16px 24px;
+  }
+
+  .g-floating-theme {
+    top: 10px;
+    right: 10px;
   }
 }
