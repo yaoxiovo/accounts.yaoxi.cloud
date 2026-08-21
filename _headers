@@ -3,9 +3,3 @@
   Pragma: no-cache
   Expires: 0
   X-Robots-Tag: noindex, nofollow
-
-/*.css
-  Cache-Control: public, max-age=86400
-
-/*.js
-  Cache-Control: public, max-age=86400
