@@ -1,9 +1,0 @@
-{
-  "name": "accounts-yaoxi-cloud",
-  "version": "1.0.0",
-  "private": true,
-  "description": "accounts.yaoxi.cloud Google Sign-In & Passkey SSO Gateway",
-  "scripts": {
-    "build": "echo 'Cloudflare Pages Functions build ready'"
-  }
-}
