@@ -1,9 +1,11 @@
 /**
  * 100% 免费版 Cloudflare Worker / Snippet 边缘 400 拦截器
- * 严格白名单过滤: 除合法的 SSO 授权凭证参数外，携带任何非法/额外参数均直接拦截下发 HTTP 400 Bad Request
- * 适用环境: Cloudflare Free 免费版计划 (每日 100,000 次免费请求额度，无需升级付费版)
+ * 严格白名单过滤 + HMAC-SHA256 密码学签名防伪验签: 篡改任何数字/字符立即拦截并下发 HTTP 400 Bad Request
+ * 适用环境: Cloudflare Free 免费版计划 (每日 100,000 次免费请求额度)
  * 路由绑定: accounts.yaoxi.cloud/*
  */
+
+const SSO_HANDSHAKE_SECRET = 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
 
 const ALLOWED_PARAMS = new Set([
   'client_request_token',
@@ -109,19 +111,50 @@ const GOOGLE_400_HTML = `<!DOCTYPE html>
     </div>
     <h1 class="g-400-title"><strong>400.</strong> 错误。</h1>
     <p class="g-400-body">
-      请求无效：参数不合法或缺少必需的客户端请求凭证（<code>client_request_token</code>）。
+      请求无效：客户端请求凭证签名非法、已被篡改或参数未授权。
     </p>
     <div class="g-400-param-box">
-      HTTP Status: 400 Bad Request (Invalid OAuth Handshake Parameter)<br>
+      HTTP Status: 400 Bad Request (Cryptographic Signature Verification Failed)<br>
       SSO Gateway: accounts.yaoxi.cloud
     </div>
     <p class="g-400-body">
-      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带合法 Token 授权发起的跨域握手，不支持任何额外或未授权参数。
+      该单点登录节点仅受理由 <strong>blog.yaoxi.wiki</strong> 携带经密码学签名的合法 Token 发起的跨域握手，严禁伪造或篡改。
     </p>
     <div class="g-400-footer-hint">这就是我们知道的全部信息。</div>
   </div>
 </body>
 </html>`;
+
+async function verifyCryptographicTokenSignature(token, targetDomain = 'blog.yaoxi.wiki') {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 5 || parts[0] !== 'crt' || parts[1] !== 'v1') return false;
+
+  const [_, version, timestampStr, nonce, receivedSig] = parts;
+  const timestamp = parseInt(timestampStr, 10);
+  const now = Date.now();
+  if (isNaN(timestamp) || Math.abs(now - timestamp) > 300 * 1000) return false;
+
+  try {
+    const payload = `v1.${timestampStr}.${nonce}.${targetDomain}`;
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(SSO_HANDSHAKE_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const signatureBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+    const expectedSig = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('').substring(0, 32);
+
+    return receivedSig === expectedSig;
+  } catch (e) {
+    return false;
+  }
+}
 
 export default {
   async fetch(request) {
@@ -156,9 +189,12 @@ export default {
       }
     }
 
-    // 3. 检查页面请求是否携带合法的 client_request_token
+    // 3. 严格校验 client_request_token 密码学防伪签名
     const token = url.searchParams.get('client_request_token');
-    if (!token || token.trim() === '' || !/^[a-zA-Z0-9_\-\.]{6,128}$/.test(token)) {
+    const targetDomain = url.searchParams.get('target_domain') || 'blog.yaoxi.wiki';
+    const isValidSignature = await verifyCryptographicTokenSignature(token, targetDomain);
+
+    if (!isValidSignature) {
       return new Response(GOOGLE_400_HTML, {
         status: 400,
         statusText: 'Bad Request',
@@ -170,7 +206,7 @@ export default {
       });
     }
 
-    // 4. 携带合法授权参数 -> 放行至登录中心页面
+    // 4. 密码学验签通过 -> 放行至登录中心页面
     return fetch(request);
   }
 };

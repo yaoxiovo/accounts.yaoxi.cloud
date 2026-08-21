@@ -415,14 +415,45 @@ window.addEventListener('message', (event) => {
         `;
       }
 
+      const SSO_HANDSHAKE_SECRET = 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
+
+      async function createSignedChallengeToken(targetDomain) {
+        const timestamp = Date.now().toString();
+        const nonce = Math.random().toString(36).substring(2, 10);
+        const payload = `v1.${timestamp}.${nonce}.${targetDomain}`;
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          'raw',
+          enc.encode(SSO_HANDSHAKE_SECRET),
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        const signatureBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+        const signatureHex = Array.from(new Uint8Array(signatureBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('').substring(0, 32);
+
+        return `crt.v1.${timestamp}.${nonce}.${signatureHex}`;
+      }
+
       // Initiate Real-Time SSO Handshake
-      function initiateSSO(isPopup = false) {
-        pendingRequestToken = 'crt_' + Math.random().toString(36).substring(2, 14) + Date.now().toString(36);
+      async function initiateSSO(isPopup = false) {
+        const targetDomain = 'blog.yaoxi.wiki';
+        let generatedToken;
+        try {
+          generatedToken = await createSignedChallengeToken(targetDomain);
+        } catch (e) {
+          generatedToken = 'crt.v1.' + Date.now() + '.' + Math.random().toString(36).substring(2, 10) + '.sigfallback';
+        }
+
+        pendingRequestToken = generatedToken;
+        sessionStorage.setItem('pending_sso_challenge', generatedToken);
+
         const clientId = 'yaoxi-blog';
         const redirectUri = window.location.href.split('#')[0];
         const state = 'st_' + Math.random().toString(36).substring(2, 10);
         const scope = 'openid profile email admin';
-        const targetDomain = 'blog.yaoxi.wiki';
 
         const ssoUrl = `${SSO_BASE_URL}?client_request_token=${encodeURIComponent(pendingRequestToken)}&client_id=${encodeURIComponent(clientId)}&target_domain=${encodeURIComponent(targetDomain)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
 

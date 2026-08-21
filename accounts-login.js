@@ -142,8 +142,56 @@
     };
   }
 
+  // --- Cryptographic HMAC Handshake Verification ---
+  const SSO_HANDSHAKE_SECRET = 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
+
+  async function verifyCryptographicTokenSignature(token, targetDomain) {
+    if (!token || typeof token !== 'string') {
+      return { valid: false, reason: '缺少必需的客户端请求凭证（client_request_token）' };
+    }
+
+    const parts = token.split('.');
+    // Expected structure: ['crt', 'v1', timestamp, nonce, signatureHex]
+    if (parts.length !== 5 || parts[0] !== 'crt' || parts[1] !== 'v1') {
+      return { valid: false, reason: '客户端请求凭证（client_request_token）未包含合法的防伪签名结构' };
+    }
+
+    const [_, version, timestampStr, nonce, receivedSig] = parts;
+    const timestamp = parseInt(timestampStr, 10);
+
+    // 1. Time TTL check (5 minutes max window)
+    const now = Date.now();
+    if (isNaN(timestamp) || Math.abs(now - timestamp) > 300 * 1000) {
+      return { valid: false, reason: '客户端请求凭证已过期（Token Expired，有效窗口 5 分钟）' };
+    }
+
+    // 2. Cryptographic HMAC-SHA256 verification
+    try {
+      const payload = `v1.${timestampStr}.${nonce}.${targetDomain}`;
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(SSO_HANDSHAKE_SECRET),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const signatureBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+      const expectedSig = Array.from(new Uint8Array(signatureBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('').substring(0, 32);
+
+      if (receivedSig !== expectedSig) {
+        return { valid: false, reason: '客户端请求凭证防伪签名校验失败：检测到非法篡改或伪造参数' };
+      }
+      return { valid: true };
+    } catch (e) {
+      return { valid: false, reason: '加密签名核验引擎异常' };
+    }
+  }
+
   // --- Initializer ---
-  function init() {
+  async function init() {
     const DOM = getDOM();
 
     // ========================================================================
@@ -175,10 +223,15 @@
       }
     }
 
-    // 2. Validate Inbound Blog Token Presence & Format
-    if (!OAuthParams.clientRequestToken || OAuthParams.clientRequestToken.trim() === '' || !/^[a-zA-Z0-9_\-\.]{6,128}$/.test(OAuthParams.clientRequestToken)) {
-      console.warn('Direct access or invalid client_request_token -> Rendering Google Error 400');
-      if (DOM.view400) DOM.view400.style.display = 'block';
+    // 2. Validate Cryptographic HMAC Inbound Blog Token Signature
+    const sigCheck = await verifyCryptographicTokenSignature(OAuthParams.clientRequestToken, OAuthParams.targetDomain);
+    if (!sigCheck.valid) {
+      console.warn('Token signature verification failed -> Rendering Google Error 400:', sigCheck.reason);
+      if (DOM.view400) {
+        DOM.view400.style.display = 'block';
+        const bodyEl = DOM.view400.querySelector('.g-400-body');
+        if (bodyEl) bodyEl.innerHTML = `请求无效：${sigCheck.reason}`;
+      }
       if (DOM.mainApp) DOM.mainApp.style.display = 'none';
       bindTheme(DOM);
       return;
