@@ -17,9 +17,8 @@
   const SSO_ISSUER = 'https://accounts.yaoxi.cloud';
   const ALLOWED_ACCOUNT = 'yaoxi';
 
-  // 🔑 Cloudflare Turnstile 真实账户级 Site Key (在 dash.cloudflare.com -> Turnstile 获取)
-  // 支持: 1. 在此常量直接填入 2. 全局 window.CF_TURNSTILE_SITEKEY 3. URL 参数 ?cf_sitekey=0x4AAAAAA...
-  const CF_TURNSTILE_SITEKEY = window.CF_TURNSTILE_SITEKEY || '0x4AAAAAAAxxxxxxxxxxxxxx';
+  // 🔑 Cloudflare Turnstile 真实账户级 Site Key
+  const CF_TURNSTILE_SITEKEY = window.CF_TURNSTILE_SITEKEY || '0x4AAAAAAEXamT3iIRWjGCmk';
 
   // --- Parse OAuth 2.0 & Cross-Origin Challenge Parameters ---
   const urlParams = new URLSearchParams(window.location.search);
