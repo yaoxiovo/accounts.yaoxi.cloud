@@ -363,11 +363,19 @@
       }
     }
 
-    // Default to password step for 1:1 replica view
-    if (urlParams.get('step') === 'password' || urlParams.has('pwd') || isLocalOrPreview) {
-      enteredAccountEmail = urlParams.get('email') || 'yaoxiov0@gmail.com';
+    // Default to username input step: require entering username/email on login request
+    const requestedStep = urlParams.get('step');
+    const requestedEmail = urlParams.get('email') || urlParams.get('login_hint');
+
+    if (requestedStep === 'password' && requestedEmail) {
+      enteredAccountEmail = requestedEmail;
       if (DOM.accountEmail) DOM.accountEmail.textContent = enteredAccountEmail;
       showStep('password');
+    } else {
+      showStep('username');
+      if (requestedEmail && DOM.inputUsername) {
+        DOM.inputUsername.value = requestedEmail;
+      }
     }
   }
 
@@ -548,13 +556,23 @@
     });
 
     // 2. Default fallback yaoxi account
-    if (!matchedUser && (inputClean === 'yaoxi' || inputClean === 'yaoxiov0@gmail.com' || inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxi')) {
+    if (!matchedUser && (
+      inputClean === 'yaoxi' ||
+      inputClean === 'yaoxiov0' ||
+      inputClean === 'yaoxiovo' ||
+      inputClean === 'yaoxiov0@gmail.com' ||
+      inputClean === 'yaoxiovo@gmail.com' ||
+      inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxi' ||
+      inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxiovo' ||
+      inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxiov0'
+    )) {
       matchedUser = {
         username: 'yaoxi',
         displayName: 'yaoxi',
         email: inputVal.includes('@') ? inputVal : 'yaoxiov0@gmail.com',
         password: 'yaoxi',
-        roles: ['admin', 'author', 'super_user']
+        roles: ['admin', 'author', 'super_user'],
+        passkeyBound: true
       };
     }
 
@@ -576,7 +594,11 @@
       if (DOM.accountInitial) {
         DOM.accountInitial.textContent = enteredAccountEmail.charAt(0).toUpperCase();
       }
-      showStep('passkey');
+      if (matchedUser && matchedUser.passkeyBound === false) {
+        showStep('password');
+      } else {
+        showStep('passkey');
+      }
     }, 400);
   }
 
@@ -891,7 +913,7 @@
       if (DOM.stepTitle) DOM.stepTitle.textContent = '欢迎';
       if (DOM.stepSubtitle) DOM.stepSubtitle.style.display = 'none';
       if (DOM.accountChip) DOM.accountChip.style.display = 'inline-flex';
-      if (DOM.accountEmail) DOM.accountEmail.textContent = enteredAccountEmail || 'yaoxiov0@gmail.com';
+      if (DOM.accountEmail) DOM.accountEmail.textContent = enteredAccountEmail || '';
       if (DOM.inputPassword) setTimeout(() => DOM.inputPassword.focus(), 150);
     } else if (stepName === 'token') {
       if (DOM.stepTitle) DOM.stepTitle.textContent = '正在登录...';
