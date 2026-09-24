@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google 帐号 - 管理控制台 (Admin Console)</title>
+  <link rel="stylesheet" href="admin.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z' fill='%230b57d0'/></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="admin-header">
+    <div class="header-left">
+      <a href="admin.html" class="brand-badge">
+        <svg viewBox="0 0 24 24" width="28" height="28">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+        </svg>
+        <span class="brand-title">Google 帐号 - 管理控制台</span>
+        <span class="brand-subtitle">SSO Gateway v3</span>
+      </a>
+      <span class="header-status-pill">
+        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor;"></span>
+        正常服务中
+      </span>
+    </div>
+
+    <div class="header-right">
+      <button class="btn-icon" id="btn-theme-toggle" title="切换深色/浅色外观">🌙</button>
+      <a href="accounts-login.html?step=password&email=yaoxiov0@gmail.com" target="_blank" class="btn btn-secondary btn-sm" title="在新标签预览前台登录框">
+        👁️ 预览登录页面
+      </a>
+      <div class="admin-user-capsule" title="当前登录管理员">
+        <div class="admin-avatar" id="header-avatar">Y</div>
+        <span id="header-admin-name">yaoxi</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-lock-console" title="锁定控制台">🔒 锁定</button>
+    </div>
+  </header>
+
+  <!-- Admin Main Container -->
+  <div class="admin-layout">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="admin-sidebar">
+      <div>
+        <div class="nav-group-title">核心管理</div>
+        <ul class="nav-list">
+          <li>
+            <button class="nav-item-btn active" data-tab="overview">
+              <span class="nav-icon">📊</span>
+              <span>概览仪表盘</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item-btn" data-tab="domains">
+              <span class="nav-icon">🌐</span>
+              <span>授权泛域名</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item-btn" data-tab="users">
+              <span class="nav-icon">👥</span>
+              <span>账号与凭证</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item-btn" data-tab="clients">
+              <span class="nav-icon">📱</span>
+              <span>客户端应用</span>
+            </button>
+          </li>
+        </ul>
+
+        <div class="nav-group-title" style="margin-top: 14px;">系统配置</div>
+        <ul class="nav-list">
+          <li>
+            <button class="nav-item-btn" data-tab="security">
+              <span class="nav-icon">🛡️</span>
+              <span>安全与验签</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item-btn" data-tab="branding">
+              <span class="nav-icon">🎨</span>
+              <span>品牌与界面</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item-btn" data-tab="logs">
+              <span class="nav-icon">📜</span>
+              <span>审计与日志</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item-btn" data-tab="backup">
+              <span class="nav-icon">⚙️</span>
+              <span>备份与恢复</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-footer">
+        <div style="font-size: 11px; color: var(--text-dim); text-align: center;">
+          accounts.yaoxi.cloud<br>
+          Cloudflare Pages SSO
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Viewport -->
+    <main class="admin-viewport">
+
+      <!-- ====================================================================
+           TAB 1: 概览仪表盘 (Overview)
+           ==================================================================== -->
+      <section id="tab-overview" class="tab-pane active">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">系统概览仪表盘</h1>
+            <p class="page-desc">实时监控统一身份认证中心各项核心业务指标与安全防护状态</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="openDomainModal()">+ 添加授权域名</button>
+            <button class="btn btn-secondary" onclick="openUserModal()">+ 创建授权账号</button>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon-wrap" style="background:#e0f2fe; color:#0284c7;">🌐</div>
+            <div>
+              <div class="metric-val" id="metric-domains-count">0</div>
+              <div class="metric-label">已授权域名/泛域名</div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-wrap" style="background:#dcfce7; color:#16a34a;">👥</div>
+            <div>
+              <div class="metric-val" id="metric-users-count">0</div>
+              <div class="metric-label">授权有效账号</div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-wrap" style="background:#fef3c7; color:#d97706;">📱</div>
+            <div>
+              <div class="metric-val" id="metric-clients-count">0</div>
+              <div class="metric-label">接入客户端应用</div>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-icon-wrap" style="background:#f3e8ff; color:#9333ea;">🛡️</div>
+            <div>
+              <div class="metric-val" id="metric-tokens-ttl">7200s</div>
+              <div class="metric-label">Token 签名时效 (TTL)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Architecture & Health Card -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">🛡️ 认证网关运行环境与防护状态</span>
+            <span class="badge badge-success">Cloudflare Pages 边缘激活</span>
+          </div>
+          <div class="form-grid">
+            <div>
+              <div class="form-label">统一网关 Issuer 节点</div>
+              <div style="font-family: var(--admin-mono); font-size: 13px; color: var(--primary);" id="ov-issuer">-</div>
+            </div>
+            <div>
+              <div class="form-label">人机验证状态 (Turnstile)</div>
+              <div id="ov-turnstile-status"><span class="badge badge-success">强制已开启</span></div>
+            </div>
+            <div>
+              <div class="form-label">数字签名核验算法</div>
+              <div><span class="badge badge-primary">HMAC-SHA256 (Inbound) / RS256 (Outbound)</span></div>
+            </div>
+            <div>
+              <div class="form-label">重放攻击防御策略</div>
+              <div><span class="badge badge-success">单次消费即作废 (Strict Replay Guard)</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Access Client Apps -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">🚀 快捷业务系统接入直达</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>应用名称</th>
+                  <th>Client ID</th>
+                  <th>目标业务域名</th>
+                  <th>授权范围 (Scope)</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="overview-clients-tbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 2: 授权泛域名管理 (Domains)
+           ==================================================================== -->
+      <section id="tab-domains" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">授权泛域名管理</h1>
+            <p class="page-desc">在此添加并管理允许通过 accounts.yaoxi.cloud 发起跨域认证授权的域名或泛域名规则</p>
+          </div>
+          <button class="btn btn-primary" onclick="openDomainModal()">+ 新增授权域名</button>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">已配置的域名白名单列表</span>
+            <input type="text" id="domain-search" class="form-input" style="max-width: 240px; padding: 6px 12px; font-size: 13px;" placeholder="搜索域名..." oninput="renderDomainsTable()">
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>规则名称</th>
+                  <th>域名表达式 (Pattern)</th>
+                  <th>类型</th>
+                  <th>启用状态</th>
+                  <th>创建时间</th>
+                  <th style="text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="domains-table-tbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 3: 账号与凭据管理 (Users)
+           ==================================================================== -->
+      <section id="tab-users" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">授权账号与凭据管理</h1>
+            <p class="page-desc">直接在此修改管理员密码、添加新授权账号、查看角色与通行密钥绑定状态</p>
+          </div>
+          <button class="btn btn-primary" onclick="openUserModal()">+ 添加授权用户</button>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">认证中心账号列表</span>
+            <input type="text" id="user-search" class="form-input" style="max-width: 240px; padding: 6px 12px; font-size: 13px;" placeholder="搜索账号/邮箱..." oninput="renderUsersTable()">
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>账号名称</th>
+                  <th>认证邮箱</th>
+                  <th>登录密码</th>
+                  <th>分配角色</th>
+                  <th>通行密钥 (Passkey)</th>
+                  <th>账号状态</th>
+                  <th style="text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-tbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 4: 客户端应用管理 (Clients)
+           ==================================================================== -->
+      <section id="tab-clients" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">OAuth 2.0 客户端应用管理</h1>
+            <p class="page-desc">配置已接入本单点登录网关的博客、后台或移动端客户端 ID 与授权范围</p>
+          </div>
+          <button class="btn btn-primary" onclick="openClientModal()">+ 注册新应用</button>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">已注册客户端应用列表</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>应用名称</th>
+                  <th>Client ID</th>
+                  <th>绑定目标域名</th>
+                  <th>默认回调地址 (Redirect URI)</th>
+                  <th>授权 Scope</th>
+                  <th style="text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="clients-table-tbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 5: 安全与验签配置 (Security)
+           ==================================================================== -->
+      <section id="tab-security" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">安全核心与验签参数配置</h1>
+            <p class="page-desc">设置 HMAC-SHA256 防伪密钥、RS256 Token 签名时效以及 Cloudflare Turnstile 验证配置</p>
+          </div>
+          <button class="btn btn-primary" onclick="saveSecuritySettings()">💾 保存安全设置</button>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">🔑 认证网关与密码学密钥</span>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">SSO 网关 Issuer 标识</label>
+              <input type="text" id="sec-sso-issuer" class="form-input" placeholder="https://accounts.yaoxi.cloud">
+              <div class="form-hint">签发 JWT Token 中 iss 字段的标准地址</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">HMAC-SHA256 握手防伪密匙</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="password" id="sec-handshake-secret" class="form-input" style="font-family: var(--admin-mono);">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSecretVisibility('sec-handshake-secret')">👁️ 显示</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="generateNewHandshakeSecret()">🔄 生成</button>
+              </div>
+              <div class="form-hint">客户端 SDK 生成 client_request_token 的共识签名密钥</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">RS256 签发 Token 有效时长 (TTL，秒)</label>
+              <input type="number" id="sec-token-ttl" class="form-input" min="300" max="86400" step="300">
+              <div class="form-hint">默认 7200 秒（2 小时），超时需重新授权</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">JWT Key ID (kid)</label>
+              <input type="text" id="sec-kid" class="form-input" placeholder="yaoxi_cloud_sso_2026">
+              <div class="form-hint">绑定于 JWT Header 中的公钥标识</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 14px;">
+            <label class="switch-label">
+              <input type="checkbox" id="sec-prevent-replay" class="switch-input">
+              <span class="switch-track"></span>
+              <div>
+                <strong style="font-size: 14px;">启用防重放单次作废保护 (Replay Attack Guard)</strong>
+                <div class="form-hint">Token 一旦签发，立即在当前会话作废 client_request_token，杜绝二次重放</div>
+              </div>
+            </label>
+
+            <label class="switch-label">
+              <input type="checkbox" id="sec-strict-whitelist" class="switch-input">
+              <span class="switch-track"></span>
+              <div>
+                <strong style="font-size: 14px;">启用 URL 严格参数白名单 (Strict Params Whitelist)</strong>
+                <div class="form-hint">任何未在白名单中的未知参数立即被拦截并下发 HTTP 400 Bad Request</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Cloudflare Turnstile Configuration -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">🛡️ Cloudflare Turnstile 人机验证配置</span>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <label class="switch-label">
+              <input type="checkbox" id="sec-turnstile-enabled" class="switch-input">
+              <span class="switch-track"></span>
+              <div>
+                <strong style="font-size: 14px;">强制开启 Cloudflare Turnstile 验证</strong>
+                <div class="form-hint">要求用户在登录首步必须完成智能无感知人机验证，防止撞库机器人</div>
+              </div>
+            </label>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Turnstile Site Key (公钥)</label>
+              <input type="text" id="sec-turnstile-sitekey" class="form-input" style="font-family: var(--admin-mono);" placeholder="0x4AAAAAAEXamT3iIRWjGCmk">
+              <div class="form-hint">前端加载的 Cloudflare 挑战小部件公钥</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Turnstile Secret Key (服务端私钥，可选)</label>
+              <input type="password" id="sec-turnstile-secretkey" class="form-input" style="font-family: var(--admin-mono);" placeholder="可选：用于边缘 Serverless 端二次校验">
+              <div class="form-hint">若填写，边缘中间件将向 Cloudflare API 校验 Token 真伪</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 6: 品牌与界面定制 (Branding)
+           ==================================================================== -->
+      <section id="tab-branding" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">品牌与界面视觉定制</h1>
+            <p class="page-desc">实时修改统一登录页面的标题、提示条文本、默认外观主题与国际化语言</p>
+          </div>
+          <button class="btn btn-primary" onclick="saveBrandingSettings()">💾 保存界面定制</button>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">🎨 视觉文本与显示选项</span>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">登录中心页面标题 (Title)</label>
+              <input type="text" id="brand-system-title" class="form-input" placeholder="Google 帐号 - 统一身份认证">
+              <div class="form-hint">浏览器标签页标题与主标识</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">卡片欢迎主标题</label>
+              <input type="text" id="brand-welcome-title" class="form-input" placeholder="欢迎">
+              <div class="form-hint">双栏卡片左侧大字标题</div>
+            </div>
+
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label class="form-label">Material 3 浅蓝提示横幅文案</label>
+              <textarea id="brand-banner-notice" class="form-textarea" style="min-height: 70px;" placeholder="不妨选择“试试其他方式”，改用通行密钥更轻松更安全地登录"></textarea>
+              <div class="form-hint">右侧密码输入框上方的高亮通知横幅</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">默认外观主题</label>
+              <select id="brand-default-theme" class="form-select">
+                <option value="light">浅色模式 (Light 默认)</option>
+                <option value="dark">深色模式 (Dark)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">默认界面语言</label>
+              <select id="brand-default-lang" class="form-select">
+                <option value="zh-CN">简体中文 (zh-CN)</option>
+                <option value="zh-TW">繁體中文 (zh-TW)</option>
+                <option value="en">English (en)</option>
+                <option value="ja">日本語 (ja)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <label class="switch-label">
+              <input type="checkbox" id="brand-show-password-toggle" class="switch-input">
+              <span class="switch-track"></span>
+              <div>
+                <strong style="font-size: 14px;">启用“显示密码”复选框</strong>
+                <div class="form-hint">允许用户勾选以明文查看输入的密码</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 7: 审计与安全日志 (Logs)
+           ==================================================================== -->
+      <section id="tab-logs" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">系统审计与安全事件日志</h1>
+            <p class="page-desc">记录认证中心的历史登录记录、配置变更追踪与安全异常拦截</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-secondary btn-sm" onclick="exportLogsJson()">📥 导出日志</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="clearAuditLogs()">🗑️ 清空日志</button>
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>时间戳</th>
+                  <th>事件类型</th>
+                  <th>操作人员 / 账号</th>
+                  <th>详细记录</th>
+                  <th>客户端 IP</th>
+                </tr>
+              </thead>
+              <tbody id="logs-table-tbody">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           TAB 8: 备份与恢复 (Backup)
+           ==================================================================== -->
+      <section id="tab-backup" class="tab-pane">
+        <div class="page-header-row">
+          <div>
+            <h1 class="page-title">配置中心全量备份与重置</h1>
+            <p class="page-desc">一键将当前全部域名、账号、密码、密钥和客户端配置打包导出或恢复还原</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-secondary" onclick="exportFullConfigJson()">📦 导出完整备份 (JSON)</button>
+            <button class="btn btn-primary" onclick="document.getElementById('file-import-input').click()">📤 导入配置还原</button>
+            <input type="file" id="file-import-input" style="display: none;" accept=".json" onchange="importFullConfigJson(event)">
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span class="card-panel-title">📄 当前生效配置 (只读 JSON 视图)</span>
+            <button class="btn btn-secondary btn-sm" onclick="copyConfigToClipboard()">📋 复制配置内容</button>
+          </div>
+          <textarea id="raw-config-viewer" class="form-textarea" style="min-height: 380px; font-size: 13px; line-height: 1.5;" readonly></textarea>
+        </div>
+
+        <div class="card-panel" style="border-color: var(--danger-bg); background: var(--bg-surface);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <strong style="color: var(--danger); font-size: 15px;">⚠️ 恢复出厂设置 (Factory Reset)</strong>
+              <div class="form-hint">将所有授权域名、账号密码、应用与品牌配置重置为初始出厂状态，此操作无法撤销。</div>
+            </div>
+            <button class="btn btn-danger-outline" onclick="confirmResetDefaults()">重置所有配置为默认值</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Global Sticky Save Bar -->
+  <div id="sticky-bar" class="sticky-action-bar">
+    <span style="font-size: 13px; font-weight: 500;">⚠️ 检测到配置已被修改，尚未部署生效</span>
+    <button class="btn btn-secondary btn-sm" onclick="discardPendingChanges()">放弃修改</button>
+    <button class="btn btn-primary btn-sm" onclick="saveAllPendingChanges()">💾 保存并立即生效</button>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ========================================================================
+       MODAL 1: 域名添加 / 编辑弹窗
+       ======================================================================== -->
+  <div id="modal-domain" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-domain-title">添加授权域名</h3>
+        <button class="btn-icon" onclick="closeModal('modal-domain')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-domain-id">
+        <div class="form-group">
+          <label class="form-label">规则名称 *</label>
+          <input type="text" id="edit-domain-name" class="form-input" placeholder="例如：耀西极客博客">
+        </div>
+        <div class="form-group">
+          <label class="form-label">域名表达式 (Pattern) *</label>
+          <input type="text" id="edit-domain-pattern" class="form-input" placeholder="例如：*.yaoxi.wiki 或 custom.domain.com">
+          <div class="form-hint">支持通配符 *.example.com 或单域名 example.com / localhost</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">匹配类型</label>
+          <select id="edit-domain-type" class="form-select">
+            <option value="wildcard">泛域名通配匹配 (Wildcard)</option>
+            <option value="exact">完全匹配 (Exact)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="switch-label">
+            <input type="checkbox" id="edit-domain-enabled" class="switch-input" checked>
+            <span class="switch-track"></span>
+            <span style="font-size: 14px;">立即启用此规则</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-domain')">取消</button>
+        <button class="btn btn-primary" onclick="submitDomainForm()">保存域名</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 2: 账号添加 / 编辑弹窗
+       ======================================================================== -->
+  <div id="modal-user" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-user-title">添加授权账号</h3>
+        <button class="btn-icon" onclick="closeModal('modal-user')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-user-id">
+        <div class="form-group">
+          <label class="form-label">登录用户名 (Username) *</label>
+          <input type="text" id="edit-user-username" class="form-input" placeholder="例如：yaoxi">
+        </div>
+        <div class="form-group">
+          <label class="form-label">认证邮箱地址 (Email) *</label>
+          <input type="email" id="edit-user-email" class="form-input" placeholder="例如：yaoxiov0@gmail.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">显示名称 (Display Name)</label>
+          <input type="text" id="edit-user-displayname" class="form-input" placeholder="例如：耀西 (Admin)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">登录密码 (Password) *</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="edit-user-password" class="form-input" placeholder="设置登录密码">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="generateRandomPassword()">🎲 随机密码</button>
+          </div>
+          <div class="form-hint">用户在前台密码步骤验证时以此密码为准</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">角色权限 (用逗号分隔)</label>
+          <input type="text" id="edit-user-roles" class="form-input" value="admin, author, super_user" placeholder="admin, author">
+        </div>
+        <div class="form-group">
+          <label class="switch-label">
+            <input type="checkbox" id="edit-user-passkey" class="switch-input" checked>
+            <span class="switch-track"></span>
+            <span style="font-size: 14px;">允许通行密钥 (Passkey) 认证</span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="switch-label">
+            <input type="checkbox" id="edit-user-status" class="switch-input" checked>
+            <span class="switch-track"></span>
+            <span style="font-size: 14px;">账号状态正常启用</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-user')">取消</button>
+        <button class="btn btn-primary" onclick="submitUserForm()">保存账号</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 3: 客户端应用注册 / 编辑弹窗
+       ======================================================================== -->
+  <div id="modal-client" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-client-title">注册客户端应用</h3>
+        <button class="btn-icon" onclick="closeModal('modal-client')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-client-id-key">
+        <div class="form-group">
+          <label class="form-label">应用显示名称 *</label>
+          <input type="text" id="edit-client-name" class="form-input" placeholder="例如：耀西极客博客">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Client ID 标识 *</label>
+          <input type="text" id="edit-client-id" class="form-input" placeholder="例如：yaoxi-blog">
+        </div>
+        <div class="form-group">
+          <label class="form-label">绑定业务域名 (Target Domain) *</label>
+          <input type="text" id="edit-client-targetdomain" class="form-input" placeholder="例如：blog.yaoxi.wiki">
+        </div>
+        <div class="form-group">
+          <label class="form-label">默认回调 URL (Redirect URI)</label>
+          <input type="url" id="edit-client-redirect" class="form-input" placeholder="例如：https://blog.yaoxi.wiki">
+        </div>
+        <div class="form-group">
+          <label class="form-label">允许申请的授权范围 (Scope)</label>
+          <input type="text" id="edit-client-scope" class="form-input" value="openid profile email admin">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-client')">取消</button>
+        <button class="btn btn-primary" onclick="submitClientForm()">保存应用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 4: 控制台安全解锁门禁 (PIN / Password Gate)
+       ======================================================================== -->
+  <div id="modal-lock" class="modal-overlay">
+    <div class="modal-card" style="max-width: 420px; text-align: center;">
+      <div class="modal-body" style="padding: 36px 28px;">
+        <div style="width: 56px; height: 56px; border-radius: 50%; background: var(--primary-container); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto 16px;">
+          🔒
+        </div>
+        <h2 style="font-size: 20px; margin-bottom: 8px;">控制台安全保护</h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">
+          请输入当前管理员密码以解锁后台管理系统<br>
+          <small style="color: var(--text-dim);">（默认密码为当前管理员账号密码: yaoxi）</small>
+        </p>
+
+        <form id="lock-form" onsubmit="event.preventDefault(); unlockConsole();">
+          <div class="form-group" style="text-align: left;">
+            <input type="password" id="lock-input-pwd" class="form-input" placeholder="输入管理员密码" autofocus style="text-align: center; font-size: 16px; letter-spacing: 2px;">
+          </div>
+          <div id="lock-error-msg" style="color: var(--danger); font-size: 13px; margin-bottom: 16px; display: none;">
+            ⚠️ 密码错误，请重试
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; height: 44px; font-size: 15px;">
+            验证并解锁进入
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

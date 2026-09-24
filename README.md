@@ -1,29 +1,38 @@
-# accounts.yaoxi.cloud 统一身份认证中心 & blog.yaoxi.wiki 博客单点登录
+# accounts.yaoxi.cloud 统一身份认证中心
 
-基于 **FIDO2 / WebAuthn 通行密钥 (Passkey)** 与 **OAuth 2.0 / OIDC 协议** 打造的 1:1 Google Material 3 风格生产级身份认证中心。
+基于 **OAuth 2.0 / OIDC 协议** 与 **FIDO2 / WebAuthn 通行密钥 (Passkey)** 规范打造的生产级统一身份认证系统。1:1 像素级复刻 Google Identity v3 (Material 3) 登录交互与视觉体系。
 
 ---
 
-## 🌟 生产架构规范
+## 🌟 核心特性与架构升级
 
-- **统一认证中心 (SSO Gateway)**: `https://accounts.yaoxi.cloud`
-- **客户端博客系统 (Blog App)**: `https://blog.yaoxi.wiki`
-- **授权管理员账号 (Whitelist)**: `yaoxi` (`yaoxi@yaoxi.cloud`)
-- **认证模式**: 仅允许通行密钥硬件断言验证（`navigator.credentials.get()`，禁止自动创建），支持跨域实时 Token 签名回传。
+- **泛域名全面支持**: 支持 `*.yaoxi.wiki` 与 `*.yaoxi.cloud` 全子域，任何携带合法防伪凭证的子域均可无缝拉起登录。
+- **零前端调试干扰**: 移除开发期 JWT 数据流、Base64 串与倒计时；错误状态采用标准 Google 400 简洁提示，不暴露任何内部安全参数。
+- **开箱即用 SDK (`sdk/yaoxi-auth.js`)**: 类似 Google 登录 SDK，支持 Popup 弹窗 (1060x620) 与 Redirect 跳转两种接入方式，自动监听 postMessage 跨域回传。
+- **1:1 Google Material 3 宽屏卡片**: 1040px 双栏卡片结构、Material 3 浅蓝提示横幅、浮动边框输入框与右下角标准按钮。
 
 ---
 
 ## 📁 项目文件架构
 
 ```text
-google-login-ui/
-├── accounts-login.html    # 🏛️ accounts.yaoxi.cloud 1:1 Google 官方通行密钥认证中心
-├── accounts-login.css     # Material 3 暗黑/浅色自适应规范与 1:1 矢量插画样式
-├── accounts-login.js      # yaoxi 账号校验、WebAuthn 硬件断言、CF Turnstile 与跨域 Token 签发
-├── client-blog.html       # 🌐 blog.yaoxi.wiki 博客客户端系统 (携带 Token 请求与跨域签名验证面板)
-├── blog-login.css         # 博客客户端配套样式
-├── push_to_github.sh      # 🚀 GitHub 快速推送脚本
-└── README.md              # 架构说明与集成文档
+yaoxi-account/
+├── index.html                 # 🏛️ 统一登录中心首页 (1:1 Google Material 3)
+├── accounts-login.html        # 独立登录入口 (与 index.html 同步)
+├── accounts-login.css         # Google 官方 1040px 双栏卡片、提示条与控件样式
+├── accounts-login.js          # 核心认证逻辑、密码学签名核验、动态配置加载
+├── admin.html                 # 🎛️ Google Admin 控制台 (后台可视化管理所有功能数据)
+├── admin.css                  # 后台管理控制台 Material 3 响应式设计系统
+├── admin.js                   # 后台全量 CRUD 逻辑、配置持久化与审计监控
+├── functions/
+│   ├── _middleware.js         # Cloudflare Pages 边缘中间件 (严格白名单 + 泛域名 400 校验)
+│   └── api/config.js          # 统一配置存储与 KV 持久化 API (/api/config)
+├── cloudflare-worker-400.js   # 备用 Cloudflare Worker 边缘拦截器
+├── sdk/
+│   └── yaoxi-auth.js          # 统一认证客户端接入 SDK
+├── client-blog.html           # 博客接入演示页面 (展示 SDK 跨域握手与回传)
+├── push_to_github.sh          # 🚀 GitHub 快速推送脚本
+└── README.md                  # 架构说明与集成文档
 ```
 
 ---

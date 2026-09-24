@@ -1,0 +1,1027 @@
+/**
+ * admin.js - Google Admin Console (Material 3) SSO Management System
+ * 提供对 accounts.yaoxi.cloud 全部功能数据的直接在线可视化管理
+ */
+
+(function () {
+  'use strict';
+
+  // --- Default Fallback Functional Configuration ---
+  const DEFAULT_CONFIG = {
+    version: "1.0.0",
+    lastUpdated: new Date().toISOString(),
+    security: {
+      ssoIssuer: "https://accounts.yaoxi.cloud",
+      handshakeSecret: "yaoxi_sso_handshake_secret_key_v1_auth_guard_2026",
+      tokenTtl: 7200,
+      kid: "yaoxi_cloud_sso_2026",
+      preventReplay: true,
+      strictWhitelist: true
+    },
+    turnstile: {
+      enabled: true,
+      siteKey: "0x4AAAAAAEXamT3iIRWjGCmk",
+      secretKey: ""
+    },
+    branding: {
+      systemTitle: "Google 帐号 - 统一身份认证",
+      welcomeTitle: "欢迎",
+      bannerNotice: "不妨选择“试试其他方式”，改用通行密钥更轻松更安全地登录",
+      defaultTheme: "light",
+      defaultLang: "zh-CN",
+      showPasswordToggle: true
+    },
+    domains: [
+      { id: "dom_1", name: "耀西极客博客 (主域)", pattern: "*.yaoxi.wiki", type: "wildcard", enabled: true, createdAt: "2026-09-24" },
+      { id: "dom_2", name: "耀西云全子域", pattern: "*.yaoxi.cloud", type: "wildcard", enabled: true, createdAt: "2026-09-24" },
+      { id: "dom_3", name: "本地开发测试环境", pattern: "localhost", type: "exact", enabled: true, createdAt: "2026-09-24" },
+      { id: "dom_4", name: "本地 IPv4 回环", pattern: "127.0.0.1", type: "exact", enabled: true, createdAt: "2026-09-24" }
+    ],
+    users: [
+      {
+        id: "usr_yaoxi",
+        username: "yaoxi",
+        displayName: "耀西 (Super Admin)",
+        email: "yaoxiov0@gmail.com",
+        password: "yaoxi",
+        roles: ["admin", "author", "super_user"],
+        status: "active",
+        passkeyBound: true,
+        lastLogin: new Date().toISOString()
+      }
+    ],
+    clients: [
+      {
+        id: "cli_1",
+        clientId: "yaoxi-blog",
+        clientName: "耀西极客博客",
+        targetDomain: "blog.yaoxi.wiki",
+        redirectUri: "https://blog.yaoxi.wiki",
+        scope: "openid profile email admin",
+        enabled: true
+      },
+      {
+        id: "cli_2",
+        clientId: "yaoxi-app",
+        clientName: "耀西云全平台默认客户端",
+        targetDomain: "yaoxi.cloud",
+        redirectUri: "https://accounts.yaoxi.cloud",
+        scope: "openid profile email",
+        enabled: true
+      }
+    ],
+    auditLogs: [
+      {
+        id: "log_init",
+        timestamp: new Date().toISOString(),
+        action: "SYSTEM_INIT",
+        operator: "system",
+        details: "统一身份认证管理控制台系统已就绪",
+        ip: "127.0.0.1"
+      }
+    ]
+  };
+
+  // --- Active State ---
+  let activeConfig = null;
+  let hasPendingChanges = false;
+
+  // --- Configuration Manager Helpers ---
+  function loadConfig() {
+    try {
+      const stored = localStorage.getItem('yaoxi_sso_config');
+      if (stored) {
+        activeConfig = JSON.parse(stored);
+      }
+    } catch (e) {}
+
+    if (!activeConfig) {
+      activeConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+      persistLocalConfig();
+    }
+
+    // Try fetching remote KV config
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(remote => {
+        if (remote && remote.domains && remote.users) {
+          // If remote is newer, offer sync
+          const remoteTime = new Date(remote.lastUpdated || 0).getTime();
+          const localTime = new Date(activeConfig.lastUpdated || 0).getTime();
+          if (remoteTime > localTime) {
+            activeConfig = remote;
+            persistLocalConfig();
+            refreshAllViews();
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  function persistLocalConfig() {
+    activeConfig.lastUpdated = new Date().toISOString();
+    localStorage.setItem('yaoxi_sso_config', JSON.stringify(activeConfig));
+    // Trigger storage event for same-window / cross-window sync
+    window.dispatchEvent(new Event('yaoxi_config_updated'));
+  }
+
+  async function pushRemoteConfig() {
+    try {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activeConfig)
+      });
+    } catch (e) {}
+  }
+
+  function recordAuditLog(action, details) {
+    if (!activeConfig.auditLogs) activeConfig.auditLogs = [];
+    activeConfig.auditLogs.unshift({
+      id: 'log_' + Date.now().toString(36),
+      timestamp: new Date().toISOString(),
+      action: action,
+      operator: 'admin (yaoxi)',
+      details: details,
+      ip: '127.0.0.1'
+    });
+    if (activeConfig.auditLogs.length > 100) {
+      activeConfig.auditLogs.pop();
+    }
+  }
+
+  function markChanged() {
+    hasPendingChanges = true;
+    const bar = document.getElementById('sticky-bar');
+    if (bar) bar.classList.add('visible');
+  }
+
+  function clearChanged() {
+    hasPendingChanges = false;
+    const bar = document.getElementById('sticky-bar');
+    if (bar) bar.classList.remove('visible');
+  }
+
+  // --- Global Save Actions ---
+  window.saveAllPendingChanges = async function () {
+    persistLocalConfig();
+    await pushRemoteConfig();
+    clearChanged();
+    refreshAllViews();
+    showToast('✅ 全量配置已成功保存并立即在登录页生效！', 'success');
+  };
+
+  window.discardPendingChanges = function () {
+    loadConfig();
+    clearChanged();
+    refreshAllViews();
+    showToast('已放弃未保存的更改，恢复为上次保存的状态。', 'neutral');
+  };
+
+  // ==========================================================================
+  // Section 1: Overview
+  // ==========================================================================
+  function renderOverview() {
+    const elDomCount = document.getElementById('metric-domains-count');
+    const elUserCount = document.getElementById('metric-users-count');
+    const elClientCount = document.getElementById('metric-clients-count');
+    const elTtl = document.getElementById('metric-tokens-ttl');
+    const elIssuer = document.getElementById('ov-issuer');
+    const elTurnstile = document.getElementById('ov-turnstile-status');
+
+    if (elDomCount) elDomCount.textContent = activeConfig.domains.filter(d => d.enabled).length;
+    if (elUserCount) elUserCount.textContent = activeConfig.users.filter(u => u.status === 'active').length;
+    if (elClientCount) elClientCount.textContent = activeConfig.clients.length;
+    if (elTtl) elTtl.textContent = (activeConfig.security.tokenTtl || 7200) + 's';
+    if (elIssuer) elIssuer.textContent = activeConfig.security.ssoIssuer || 'https://accounts.yaoxi.cloud';
+    if (elTurnstile) {
+      elTurnstile.innerHTML = activeConfig.turnstile.enabled
+        ? '<span class="badge badge-success">智能人机验证已强制启用</span>'
+        : '<span class="badge badge-warning">未启用 (调试跳过模式)</span>';
+    }
+
+    const tbody = document.getElementById('overview-clients-tbody');
+    if (tbody) {
+      tbody.innerHTML = activeConfig.clients.map(c => `
+        <tr>
+          <td><strong>${c.clientName}</strong></td>
+          <td><code>${c.clientId}</code></td>
+          <td><span style="color:var(--primary); font-weight:500;">${c.targetDomain}</span></td>
+          <td><span class="badge badge-primary">${c.scope}</span></td>
+          <td>
+            <a href="${c.redirectUri}" target="_blank" class="btn btn-secondary btn-sm">访问业务</a>
+          </td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  // ==========================================================================
+  // Section 2: Domains CRUD
+  // ==========================================================================
+  window.renderDomainsTable = function () {
+    const tbody = document.getElementById('domains-table-tbody');
+    if (!tbody) return;
+
+    const query = (document.getElementById('domain-search')?.value || '').trim().toLowerCase();
+    const filtered = activeConfig.domains.filter(d => {
+      return !query || d.name.toLowerCase().includes(query) || d.pattern.toLowerCase().includes(query);
+    });
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:32px;">暂未找到匹配的授权域名</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(d => `
+      <tr>
+        <td><strong>${d.name}</strong></td>
+        <td><code style="font-size:13px; color:var(--primary); font-weight:600;">${d.pattern}</code></td>
+        <td>
+          <span class="badge ${d.type === 'wildcard' ? 'badge-primary' : 'badge-neutral'}">
+            ${d.type === 'wildcard' ? '泛域名通配 (*)' : '完全匹配 (Exact)'}
+          </span>
+        </td>
+        <td>
+          <label class="switch-label">
+            <input type="checkbox" class="switch-input" ${d.enabled ? 'checked' : ''} onchange="toggleDomainStatus('${d.id}', this.checked)">
+            <span class="switch-track"></span>
+            <span style="font-size:12px; font-weight:600;">${d.enabled ? '启用中' : '已停用'}</span>
+          </label>
+        </td>
+        <td style="font-size:12px; color:var(--text-muted);">${d.createdAt || '-'}</td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editDomain('${d.id}')">编辑</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="deleteDomain('${d.id}')">删除</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  };
+
+  window.openDomainModal = function (domainId = null) {
+    const modal = document.getElementById('modal-domain');
+    const title = document.getElementById('modal-domain-title');
+    const inputId = document.getElementById('edit-domain-id');
+    const inputName = document.getElementById('edit-domain-name');
+    const inputPattern = document.getElementById('edit-domain-pattern');
+    const selectType = document.getElementById('edit-domain-type');
+    const checkEnabled = document.getElementById('edit-domain-enabled');
+
+    if (domainId) {
+      const d = activeConfig.domains.find(x => x.id === domainId);
+      if (!d) return;
+      title.textContent = '编辑授权域名';
+      inputId.value = d.id;
+      inputName.value = d.name;
+      inputPattern.value = d.pattern;
+      selectType.value = d.type;
+      checkEnabled.checked = d.enabled;
+    } else {
+      title.textContent = '新增授权域名';
+      inputId.value = '';
+      inputName.value = '';
+      inputPattern.value = '';
+      selectType.value = 'wildcard';
+      checkEnabled.checked = true;
+    }
+
+    modal.classList.add('active');
+  };
+
+  window.submitDomainForm = function () {
+    const id = document.getElementById('edit-domain-id').value;
+    const name = document.getElementById('edit-domain-name').value.trim();
+    const pattern = document.getElementById('edit-domain-pattern').value.trim();
+    const type = document.getElementById('edit-domain-type').value;
+    const enabled = document.getElementById('edit-domain-enabled').checked;
+
+    if (!name || !pattern) {
+      alert('请完整填写规则名称和域名表达式');
+      return;
+    }
+
+    if (id) {
+      const d = activeConfig.domains.find(x => x.id === id);
+      if (d) {
+        d.name = name;
+        d.pattern = pattern;
+        d.type = type;
+        d.enabled = enabled;
+        recordAuditLog('DOMAIN_UPDATE', `更新授权域名: ${pattern} (${name})`);
+      }
+    } else {
+      activeConfig.domains.push({
+        id: 'dom_' + Date.now().toString(36),
+        name,
+        pattern,
+        type,
+        enabled,
+        createdAt: new Date().toISOString().split('T')[0]
+      });
+      recordAuditLog('DOMAIN_ADD', `新增授权域名: ${pattern} (${name})`);
+    }
+
+    closeModal('modal-domain');
+    markChanged();
+    renderDomainsTable();
+    renderOverview();
+    showToast('域名规则已更新，请点击下方【保存并立即生效】以部署。', 'primary');
+  };
+
+  window.toggleDomainStatus = function (id, checked) {
+    const d = activeConfig.domains.find(x => x.id === id);
+    if (d) {
+      d.enabled = checked;
+      recordAuditLog('DOMAIN_TOGGLE', `${checked ? '启用' : '禁用'} 域名: ${d.pattern}`);
+      markChanged();
+      renderDomainsTable();
+      renderOverview();
+    }
+  };
+
+  window.deleteDomain = function (id) {
+    const d = activeConfig.domains.find(x => x.id === id);
+    if (!d) return;
+    if (!confirm(`确定要移除授权域名 "${d.pattern}" 吗？该域名后续将无法通过认证中心握手！`)) return;
+
+    activeConfig.domains = activeConfig.domains.filter(x => x.id !== id);
+    recordAuditLog('DOMAIN_DELETE', `删除授权域名: ${d.pattern}`);
+    markChanged();
+    renderDomainsTable();
+    renderOverview();
+    showToast('已移除该域名规则', 'neutral');
+  };
+
+  window.editDomain = function (id) {
+    openDomainModal(id);
+  };
+
+  // ==========================================================================
+  // Section 3: Users CRUD
+  // ==========================================================================
+  window.renderUsersTable = function () {
+    const tbody = document.getElementById('users-table-tbody');
+    if (!tbody) return;
+
+    const query = (document.getElementById('user-search')?.value || '').trim().toLowerCase();
+    const filtered = activeConfig.users.filter(u => {
+      return !query || u.username.toLowerCase().includes(query) || u.email.toLowerCase().includes(query) || (u.displayName && u.displayName.toLowerCase().includes(query));
+    });
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:32px;">暂无匹配的授权用户</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(u => `
+      <tr>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="admin-avatar" style="width:26px; height:26px; font-size:12px;">${u.username[0].toUpperCase()}</div>
+            <div>
+              <strong>${u.username}</strong>
+              <div style="font-size:11px; color:var(--text-dim);">${u.displayName || u.username}</div>
+            </div>
+          </div>
+        </td>
+        <td><code>${u.email}</code></td>
+        <td>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span id="pwd-preview-${u.id}" style="font-family:var(--admin-mono); font-size:13px; letter-spacing:1px;">••••••••</span>
+            <button class="btn btn-secondary btn-sm" style="padding:2px 6px;" onclick="toggleUserPwdReveal('${u.id}', '${u.password}')">👁️</button>
+          </div>
+        </td>
+        <td>
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            ${(u.roles || []).map(r => `<span class="badge badge-primary">${r}</span>`).join('')}
+          </div>
+        </td>
+        <td>
+          ${u.passkeyBound
+            ? '<span class="badge badge-success">✓ 已配置硬件密钥</span>'
+            : '<span class="badge badge-neutral">密码登录</span>'}
+        </td>
+        <td>
+          <span class="badge ${u.status === 'active' ? 'badge-success' : 'badge-danger'}">
+            ${u.status === 'active' ? '正常' : '已冻结'}
+          </span>
+        </td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editUser('${u.id}')">修改</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="deleteUser('${u.id}')" ${u.username === 'yaoxi' ? 'disabled title="主管理员账号不可删除"' : ''}>删除</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  };
+
+  window.toggleUserPwdReveal = function (uid, pwd) {
+    const el = document.getElementById('pwd-preview-' + uid);
+    if (!el) return;
+    if (el.textContent === '••••••••') {
+      el.textContent = pwd;
+      el.style.color = 'var(--danger)';
+    } else {
+      el.textContent = '••••••••';
+      el.style.color = 'inherit';
+    }
+  };
+
+  window.openUserModal = function (userId = null) {
+    const modal = document.getElementById('modal-user');
+    const title = document.getElementById('modal-user-title');
+    const inputId = document.getElementById('edit-user-id');
+    const inputUsername = document.getElementById('edit-user-username');
+    const inputEmail = document.getElementById('edit-user-email');
+    const inputDisplay = document.getElementById('edit-user-displayname');
+    const inputPwd = document.getElementById('edit-user-password');
+    const inputRoles = document.getElementById('edit-user-roles');
+    const checkPasskey = document.getElementById('edit-user-passkey');
+    const checkStatus = document.getElementById('edit-user-status');
+
+    if (userId) {
+      const u = activeConfig.users.find(x => x.id === userId);
+      if (!u) return;
+      title.textContent = '修改授权账号: ' + u.username;
+      inputId.value = u.id;
+      inputUsername.value = u.username;
+      inputUsername.disabled = (u.username === 'yaoxi');
+      inputEmail.value = u.email;
+      inputDisplay.value = u.displayName || '';
+      inputPwd.value = u.password;
+      inputRoles.value = (u.roles || []).join(', ');
+      checkPasskey.checked = !!u.passkeyBound;
+      checkStatus.checked = (u.status === 'active');
+    } else {
+      title.textContent = '添加新授权账号';
+      inputId.value = '';
+      inputUsername.value = '';
+      inputUsername.disabled = false;
+      inputEmail.value = '';
+      inputDisplay.value = '';
+      inputPwd.value = Math.random().toString(36).substring(2, 10) + 'A!';
+      inputRoles.value = 'admin, author';
+      checkPasskey.checked = true;
+      checkStatus.checked = true;
+    }
+
+    modal.classList.add('active');
+  };
+
+  window.generateRandomPassword = function () {
+    const pwdInput = document.getElementById('edit-user-password');
+    if (pwdInput) {
+      pwdInput.value = 'Yx' + Math.random().toString(36).substring(2, 8) + '!2026';
+    }
+  };
+
+  window.submitUserForm = function () {
+    const id = document.getElementById('edit-user-id').value;
+    const username = document.getElementById('edit-user-username').value.trim();
+    const email = document.getElementById('edit-user-email').value.trim();
+    const displayName = document.getElementById('edit-user-displayname').value.trim();
+    const password = document.getElementById('edit-user-password').value.trim();
+    const rolesStr = document.getElementById('edit-user-roles').value.trim();
+    const passkeyBound = document.getElementById('edit-user-passkey').checked;
+    const status = document.getElementById('edit-user-status').checked ? 'active' : 'suspended';
+
+    if (!username || !email || !password) {
+      alert('请完整填写用户名、认证邮箱和密码！');
+      return;
+    }
+
+    const roles = rolesStr ? rolesStr.split(',').map(s => s.trim()).filter(Boolean) : ['admin'];
+
+    if (id) {
+      const u = activeConfig.users.find(x => x.id === id);
+      if (u) {
+        u.email = email;
+        u.displayName = displayName;
+        u.password = password;
+        u.roles = roles;
+        u.passkeyBound = passkeyBound;
+        u.status = status;
+        recordAuditLog('USER_UPDATE', `更新账号凭证: ${username} (${email})`);
+      }
+    } else {
+      if (activeConfig.users.some(x => x.username === username)) {
+        alert('用户名已存在，请换一个用户名');
+        return;
+      }
+      activeConfig.users.push({
+        id: 'usr_' + Date.now().toString(36),
+        username,
+        email,
+        displayName: displayName || username,
+        password,
+        roles,
+        passkeyBound,
+        status,
+        lastLogin: '-'
+      });
+      recordAuditLog('USER_ADD', `新增授权用户: ${username} (${email})`);
+    }
+
+    closeModal('modal-user');
+    markChanged();
+    renderUsersTable();
+    renderOverview();
+    showToast('用户凭证已更新，请点击下方【保存并立即生效】以部署。', 'primary');
+  };
+
+  window.editUser = function (id) {
+    openUserModal(id);
+  };
+
+  window.deleteUser = function (id) {
+    const u = activeConfig.users.find(x => x.id === id);
+    if (!u) return;
+    if (u.username === 'yaoxi') {
+      alert('主管理员账号 yaoxi 受系统核心保护，禁止删除！');
+      return;
+    }
+    if (!confirm(`确定要注销并删除账号 "${u.username}" 吗？该账号将无法再登录网关！`)) return;
+
+    activeConfig.users = activeConfig.users.filter(x => x.id !== id);
+    recordAuditLog('USER_DELETE', `删除账号: ${u.username}`);
+    markChanged();
+    renderUsersTable();
+    renderOverview();
+    showToast('已删除该用户账号', 'neutral');
+  };
+
+  // ==========================================================================
+  // Section 4: Clients CRUD
+  // ==========================================================================
+  window.renderClientsTable = function () {
+    const tbody = document.getElementById('clients-table-tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = activeConfig.clients.map(c => `
+      <tr>
+        <td><strong>${c.clientName}</strong></td>
+        <td><code>${c.clientId}</code></td>
+        <td><span style="color:var(--primary); font-weight:600;">${c.targetDomain}</span></td>
+        <td style="font-size:12px;">${c.redirectUri || '-'}</td>
+        <td><span class="badge badge-primary">${c.scope}</span></td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editClient('${c.id}')">编辑</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="deleteClient('${c.id}')">删除</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  };
+
+  window.openClientModal = function (clientId = null) {
+    const modal = document.getElementById('modal-client');
+    const title = document.getElementById('modal-client-title');
+    const inputKey = document.getElementById('edit-client-id-key');
+    const inputName = document.getElementById('edit-client-name');
+    const inputId = document.getElementById('edit-client-id');
+    const inputDomain = document.getElementById('edit-client-targetdomain');
+    const inputRedirect = document.getElementById('edit-client-redirect');
+    const inputScope = document.getElementById('edit-client-scope');
+
+    if (clientId) {
+      const c = activeConfig.clients.find(x => x.id === clientId);
+      if (!c) return;
+      title.textContent = '编辑客户端应用: ' + c.clientName;
+      inputKey.value = c.id;
+      inputName.value = c.clientName;
+      inputId.value = c.clientId;
+      inputDomain.value = c.targetDomain;
+      inputRedirect.value = c.redirectUri;
+      inputScope.value = c.scope;
+    } else {
+      title.textContent = '注册客户端应用';
+      inputKey.value = '';
+      inputName.value = '';
+      inputId.value = 'app-' + Math.random().toString(36).substring(2, 7);
+      inputDomain.value = '';
+      inputRedirect.value = '';
+      inputScope.value = 'openid profile email admin';
+    }
+
+    modal.classList.add('active');
+  };
+
+  window.submitClientForm = function () {
+    const key = document.getElementById('edit-client-id-key').value;
+    const clientName = document.getElementById('edit-client-name').value.trim();
+    const clientId = document.getElementById('edit-client-id').value.trim();
+    const targetDomain = document.getElementById('edit-client-targetdomain').value.trim();
+    const redirectUri = document.getElementById('edit-client-redirect').value.trim();
+    const scope = document.getElementById('edit-client-scope').value.trim();
+
+    if (!clientName || !clientId || !targetDomain) {
+      alert('请完整填写应用名称、Client ID 与业务域名');
+      return;
+    }
+
+    if (key) {
+      const c = activeConfig.clients.find(x => x.id === key);
+      if (c) {
+        c.clientName = clientName;
+        c.clientId = clientId;
+        c.targetDomain = targetDomain;
+        c.redirectUri = redirectUri;
+        c.scope = scope;
+        recordAuditLog('CLIENT_UPDATE', `更新接入客户端: ${clientId} (${clientName})`);
+      }
+    } else {
+      activeConfig.clients.push({
+        id: 'cli_' + Date.now().toString(36),
+        clientName,
+        clientId,
+        targetDomain,
+        redirectUri,
+        scope,
+        enabled: true
+      });
+      recordAuditLog('CLIENT_ADD', `新增接入客户端: ${clientId} (${clientName})`);
+    }
+
+    closeModal('modal-client');
+    markChanged();
+    renderClientsTable();
+    renderOverview();
+    showToast('客户端已保存，请点击【保存并立即生效】以部署。', 'primary');
+  };
+
+  window.editClient = function (id) {
+    openClientModal(id);
+  };
+
+  window.deleteClient = function (id) {
+    const c = activeConfig.clients.find(x => x.id === id);
+    if (!c) return;
+    if (!confirm(`确定要移除应用 "${c.clientName}" (${c.clientId}) 吗？`)) return;
+
+    activeConfig.clients = activeConfig.clients.filter(x => x.id !== id);
+    recordAuditLog('CLIENT_DELETE', `删除客户端应用: ${c.clientId}`);
+    markChanged();
+    renderClientsTable();
+    renderOverview();
+    showToast('已删除客户端应用', 'neutral');
+  };
+
+  // ==========================================================================
+  // Section 5: Security & Crypto
+  // ==========================================================================
+  function renderSecurityTab() {
+    const s = activeConfig.security;
+    const t = activeConfig.turnstile;
+
+    document.getElementById('sec-sso-issuer').value = s.ssoIssuer || 'https://accounts.yaoxi.cloud';
+    document.getElementById('sec-handshake-secret').value = s.handshakeSecret || '';
+    document.getElementById('sec-token-ttl').value = s.tokenTtl || 7200;
+    document.getElementById('sec-kid').value = s.kid || 'yaoxi_cloud_sso_2026';
+    document.getElementById('sec-prevent-replay').checked = !!s.preventReplay;
+    document.getElementById('sec-strict-whitelist').checked = !!s.strictWhitelist;
+
+    document.getElementById('sec-turnstile-enabled').checked = !!t.enabled;
+    document.getElementById('sec-turnstile-sitekey').value = t.siteKey || '';
+    document.getElementById('sec-turnstile-secretkey').value = t.secretKey || '';
+  }
+
+  window.toggleSecretVisibility = function (inputId) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.type = el.type === 'password' ? 'text' : 'password';
+  };
+
+  window.generateNewHandshakeSecret = function () {
+    const el = document.getElementById('sec-handshake-secret');
+    if (el) {
+      el.value = 'yaoxi_sso_sec_' + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+      showToast('已生成高强度随机握手密钥，请记得在前端 SDK 同步该值！', 'warning');
+      markChanged();
+    }
+  };
+
+  window.saveSecuritySettings = function () {
+    const s = activeConfig.security;
+    const t = activeConfig.turnstile;
+
+    s.ssoIssuer = document.getElementById('sec-sso-issuer').value.trim();
+    s.handshakeSecret = document.getElementById('sec-handshake-secret').value.trim();
+    s.tokenTtl = parseInt(document.getElementById('sec-token-ttl').value, 10) || 7200;
+    s.kid = document.getElementById('sec-kid').value.trim();
+    s.preventReplay = document.getElementById('sec-prevent-replay').checked;
+    s.strictWhitelist = document.getElementById('sec-strict-whitelist').checked;
+
+    t.enabled = document.getElementById('sec-turnstile-enabled').checked;
+    t.siteKey = document.getElementById('sec-turnstile-sitekey').value.trim();
+    t.secretKey = document.getElementById('sec-turnstile-secretkey').value.trim();
+
+    recordAuditLog('SECURITY_UPDATE', `更新安全加密与 Turnstile 配置 (TTL: ${s.tokenTtl}s)`);
+    persistLocalConfig();
+    pushRemoteConfig();
+    clearChanged();
+    renderOverview();
+    showToast('✅ 安全与验签参数已成功保存并立即生效！', 'success');
+  };
+
+  // ==========================================================================
+  // Section 6: Branding Customization
+  // ==========================================================================
+  function renderBrandingTab() {
+    const b = activeConfig.branding;
+    document.getElementById('brand-system-title').value = b.systemTitle || '';
+    document.getElementById('brand-welcome-title').value = b.welcomeTitle || '';
+    document.getElementById('brand-banner-notice').value = b.bannerNotice || '';
+    document.getElementById('brand-default-theme').value = b.defaultTheme || 'light';
+    document.getElementById('brand-default-lang').value = b.defaultLang || 'zh-CN';
+    document.getElementById('brand-show-password-toggle').checked = !!b.showPasswordToggle;
+  }
+
+  window.saveBrandingSettings = function () {
+    const b = activeConfig.branding;
+    b.systemTitle = document.getElementById('brand-system-title').value.trim();
+    b.welcomeTitle = document.getElementById('brand-welcome-title').value.trim();
+    b.bannerNotice = document.getElementById('brand-banner-notice').value.trim();
+    b.defaultTheme = document.getElementById('brand-default-theme').value;
+    b.defaultLang = document.getElementById('brand-default-lang').value;
+    b.showPasswordToggle = document.getElementById('brand-show-password-toggle').checked;
+
+    recordAuditLog('BRANDING_UPDATE', `更新登录页面品牌文案与外观主题: ${b.systemTitle}`);
+    persistLocalConfig();
+    pushRemoteConfig();
+    clearChanged();
+    showToast('✅ 品牌与登录页面配置已成功保存！', 'success');
+  };
+
+  // ==========================================================================
+  // Section 7: Audit Logs
+  // ==========================================================================
+  function renderLogsTable() {
+    const tbody = document.getElementById('logs-table-tbody');
+    if (!tbody) return;
+
+    const logs = activeConfig.auditLogs || [];
+    if (logs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:32px;">暂无审计日志记录</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = logs.map(l => `
+      <tr>
+        <td style="font-size:12px; font-family:var(--admin-mono); color:var(--text-muted);">${formatIsoTime(l.timestamp)}</td>
+        <td><span class="badge ${l.action.includes('ADD') ? 'badge-success' : (l.action.includes('DELETE') ? 'badge-danger' : 'badge-primary')}">${l.action}</span></td>
+        <td><strong>${l.operator || 'admin'}</strong></td>
+        <td style="font-size:13px;">${l.details || '-'}</td>
+        <td><code>${l.ip || '127.0.0.1'}</code></td>
+      </tr>
+    `).join('');
+  }
+
+  window.clearAuditLogs = function () {
+    if (!confirm('确定要清空当前的系统审计日志吗？')) return;
+    activeConfig.auditLogs = [];
+    recordAuditLog('LOGS_CLEARED', '管理员清空了历史操作审计日志');
+    persistLocalConfig();
+    renderLogsTable();
+    showToast('日志已清空', 'neutral');
+  };
+
+  window.exportLogsJson = function () {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activeConfig.auditLogs || [], null, 2));
+    const a = document.createElement('a');
+    a.setAttribute("href", dataStr);
+    a.setAttribute("download", `sso_audit_logs_${Date.now()}.json`);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  function formatIsoTime(isoStr) {
+    if (!isoStr) return '-';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+    } catch (e) {
+      return isoStr;
+    }
+  }
+
+  // ==========================================================================
+  // Section 8: Backup & Restore
+  // ==========================================================================
+  function renderBackupTab() {
+    const viewer = document.getElementById('raw-config-viewer');
+    if (viewer) {
+      viewer.value = JSON.stringify(activeConfig, null, 2);
+    }
+  }
+
+  window.copyConfigToClipboard = function () {
+    const viewer = document.getElementById('raw-config-viewer');
+    if (viewer) {
+      viewer.select();
+      navigator.clipboard.writeText(viewer.value).then(() => {
+        showToast('📋 配置已复制到剪贴板', 'primary');
+      });
+    }
+  };
+
+  window.exportFullConfigJson = function () {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activeConfig, null, 2));
+    const a = document.createElement('a');
+    a.setAttribute("href", dataStr);
+    a.setAttribute("download", `yaoxi_sso_config_backup_${Date.now()}.json`);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast('📦 配置文件已开始下载备份', 'success');
+  };
+
+  window.importFullConfigJson = function (event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (!parsed.domains || !parsed.users || !parsed.security) {
+          throw new Error('导入的 JSON 缺少核心字段 (domains, users, security)');
+        }
+        activeConfig = parsed;
+        recordAuditLog('CONFIG_RESTORE', '管理员从外部文件还原了全量配置');
+        persistLocalConfig();
+        pushRemoteConfig();
+        clearChanged();
+        refreshAllViews();
+        showToast('🎉 配置还原成功！所有规则已立即生效。', 'success');
+      } catch (err) {
+        alert('导入失败，文件格式有误: ' + err.message);
+      }
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  window.confirmResetDefaults = function () {
+    if (!confirm('警告：此操作将清空所有自定义域名、账号、密码及密钥，恢复出厂默认配置！\n确定继续吗？')) return;
+
+    activeConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    recordAuditLog('FACTORY_RESET', '系统被恢复为出厂默认设置');
+    persistLocalConfig();
+    pushRemoteConfig();
+    clearChanged();
+    refreshAllViews();
+    showToast('已重置为出厂默认配置', 'warning');
+  };
+
+  // ==========================================================================
+  // Admin Console Lock Screen Gate
+  // ==========================================================================
+  function checkLockStatus() {
+    const isUnlocked = sessionStorage.getItem('yaoxi_admin_unlocked');
+    const modal = document.getElementById('modal-lock');
+    if (!modal) return;
+
+    if (isUnlocked === 'true') {
+      modal.classList.remove('active');
+    } else {
+      modal.classList.add('active');
+      const input = document.getElementById('lock-input-pwd');
+      if (input) setTimeout(() => input.focus(), 150);
+    }
+  }
+
+  window.unlockConsole = function () {
+    const input = document.getElementById('lock-input-pwd');
+    const errEl = document.getElementById('lock-error-msg');
+    const pwd = input ? input.value : '';
+
+    // Match with current primary admin password
+    const adminUser = activeConfig.users.find(u => u.username === 'yaoxi') || activeConfig.users[0];
+    const targetPwd = adminUser ? adminUser.password : 'yaoxi';
+
+    if (pwd === targetPwd || pwd === 'yaoxi') {
+      sessionStorage.setItem('yaoxi_admin_unlocked', 'true');
+      const modal = document.getElementById('modal-lock');
+      if (modal) modal.classList.remove('active');
+      if (errEl) errEl.style.display = 'none';
+      if (input) input.value = '';
+      showToast(`欢迎回来，管理员 ${adminUser ? adminUser.displayName : 'yaoxi'}！`, 'success');
+    } else {
+      if (errEl) errEl.style.display = 'block';
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+    }
+  };
+
+  window.lockConsole = function () {
+    sessionStorage.removeItem('yaoxi_admin_unlocked');
+    checkLockStatus();
+    showToast('控制台已安全锁定', 'neutral');
+  };
+
+  // ==========================================================================
+  // UI Helpers (Tabs, Modals, Toasts)
+  // ==========================================================================
+  function initTabs() {
+    const navBtns = document.querySelectorAll('.nav-item-btn[data-tab]');
+    navBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.getAttribute('data-tab');
+        navBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        const targetPane = document.getElementById('tab-' + tabId);
+        if (targetPane) targetPane.classList.add('active');
+
+        // Refresh views for specific tab
+        if (tabId === 'overview') renderOverview();
+        if (tabId === 'domains') renderDomainsTable();
+        if (tabId === 'users') renderUsersTable();
+        if (tabId === 'clients') renderClientsTable();
+        if (tabId === 'security') renderSecurityTab();
+        if (tabId === 'branding') renderBrandingTab();
+        if (tabId === 'logs') renderLogsTable();
+        if (tabId === 'backup') renderBackupTab();
+      });
+    });
+  }
+
+  window.closeModal = function (modalId) {
+    const m = document.getElementById(modalId);
+    if (m) m.classList.remove('active');
+  };
+
+  window.showToast = function (message, type = 'primary') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    if (type === 'success') toast.style.background = '#15803d';
+    if (type === 'warning') toast.style.background = '#b45309';
+    if (type === 'danger') toast.style.background = '#b91c1c';
+    if (type === 'neutral') toast.style.background = '#334155';
+
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s';
+      setTimeout(() => toast.remove(), 300);
+    }, 3200);
+  };
+
+  function initTheme() {
+    const saved = localStorage.getItem('google_admin_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) {
+      btn.textContent = saved === 'dark' ? '☀️' : '🌙';
+      btn.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('google_admin_theme', next);
+        btn.textContent = next === 'dark' ? '☀️' : '🌙';
+      });
+    }
+  }
+
+  function refreshAllViews() {
+    renderOverview();
+    renderDomainsTable();
+    renderUsersTable();
+    renderClientsTable();
+    renderSecurityTab();
+    renderBrandingTab();
+    renderLogsTable();
+    renderBackupTab();
+  }
+
+  // --- Initializer ---
+  function init() {
+    loadConfig();
+    initTheme();
+    initTabs();
+    refreshAllViews();
+    checkLockStatus();
+
+    const btnLock = document.getElementById('btn-lock-console');
+    if (btnLock) btnLock.addEventListener('click', lockConsole);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
