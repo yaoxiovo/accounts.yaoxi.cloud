@@ -27,6 +27,7 @@ console.log('[1/6] 🔍 执行 JavaScript 语法门禁校验...');
 const jsFiles = [
   'accounts-login.js',
   'admin.js',
+  'worker.js',
   path.join('functions', '_middleware.js'),
   path.join('functions', 'api', 'config.js'),
   path.join('sdk', 'yaoxi-auth.js'),
@@ -161,6 +162,7 @@ const copyFiles = [
   'blog-login.css',
   '_headers',
   '_routes.json',
+  '.assetsignore',
   'cloudflare-worker-400.js'
 ];
 

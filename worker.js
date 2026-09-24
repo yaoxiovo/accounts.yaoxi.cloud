@@ -1,0 +1,301 @@
+/**
+ * worker.js - Cloudflare Worker Entry Point for accounts.yaoxi.cloud
+ * 适配 Cloudflare Workers with Static Assets 部署体系
+ *
+ * 功能清单:
+ * 1. 严格 URL 参数白名单校验 (非法参数直接拦截下发 Google 400)
+ * 2. 泛域名防伪校验 (*.yaoxi.wiki, *.yaoxi.cloud) 与 HMAC-SHA256 签名核验
+ * 3. 统一配置管理接口 /api/config (支持 Cloudflare KV 持久化)
+ * 4. 高性能静态资源托管 (通过 env.ASSETS 映射 ./dist 产物)
+ */
+
+const SSO_HANDSHAKE_SECRET = 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
+
+const ALLOWED_PARAMS = new Set([
+  'client_request_token',
+  'client_id',
+  'redirect_uri',
+  'target_domain',
+  'response_type',
+  'scope',
+  'state',
+  'nonce',
+  'prompt',
+  'code_challenge',
+  'code_challenge_method',
+  'cf_sitekey',
+  'cf_chl_tk',
+  'lang',
+  'theme',
+  'step',
+  'preview',
+  'email',
+  'pwd',
+  'demo',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign'
+]);
+
+function isAllowedDomain(domain) {
+  if (!domain || typeof domain !== 'string') return false;
+  const d = domain.trim().toLowerCase();
+  return (
+    d === 'yaoxi.wiki' ||
+    d.endsWith('.yaoxi.wiki') ||
+    d === 'yaoxi.cloud' ||
+    d.endsWith('.yaoxi.cloud') ||
+    d === 'localhost' ||
+    d === '127.0.0.1' ||
+    d.endsWith('.localhost')
+  );
+}
+
+const GOOGLE_400_HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>400. 错误。这就是我们知道的全部信息。</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1f1f1f;
+      --text-sec: #444746;
+      --text-ter: #5e5e5e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #131314;
+        --text: #e3e3e3;
+        --text-sec: #c4c7c5;
+        --text-ter: #8e918f;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 32px 24px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .g-400-container {
+      max-width: 680px;
+      margin: 40px auto 0;
+      animation: fadeIn 0.3s ease-out;
+      width: 100%;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .g-400-logo { margin-bottom: 24px; }
+    .g-400-title {
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+    .g-400-title strong { font-weight: 700; }
+    .g-400-body {
+      font-size: 15px;
+      color: var(--text-sec);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    .g-400-footer-hint {
+      font-size: 13px;
+      color: var(--text-ter);
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="g-400-container">
+    <div class="g-400-logo">
+      <svg viewBox="0 0 24 24" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+      </svg>
+    </div>
+    <h1 class="g-400-title"><strong>400.</strong> 错误。</h1>
+    <p class="g-400-body">
+      请求无效：请求参数不正确或未经授权。
+    </p>
+    <div class="g-400-footer-hint">这就是我们知道的全部信息。</div>
+  </div>
+</body>
+</html>`;
+
+async function verifyCryptographicTokenSignature(token, targetDomain = 'yaoxi.cloud') {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 5 || parts[0] !== 'crt' || parts[1] !== 'v1') return false;
+
+  const [_, version, timestampStr, nonce, receivedSig] = parts;
+  const timestamp = parseInt(timestampStr, 10);
+  const now = Date.now();
+  if (isNaN(timestamp) || Math.abs(now - timestamp) > 900 * 1000) return false;
+
+  try {
+    const payload1 = `v1.${timestampStr}.${nonce}`;
+    const payload2 = `v1.${timestampStr}.${nonce}.${targetDomain}`;
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(SSO_HANDSHAKE_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const sigBuf1 = await crypto.subtle.sign('HMAC', key, enc.encode(payload1));
+    const sigHex1 = Array.from(new Uint8Array(sigBuf1)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+
+    const sigBuf2 = await crypto.subtle.sign('HMAC', key, enc.encode(payload2));
+    const sigHex2 = Array.from(new Uint8Array(sigBuf2)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+
+    return receivedSig === sigHex1 || receivedSig === sigHex2;
+  } catch (e) {
+    return false;
+  }
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const pathname = url.pathname.toLowerCase();
+
+    // 1. API 接口: /api/config
+    if (pathname === '/api/config') {
+      if (request.method === 'GET') {
+        let config = null;
+        if (env && env.SSO_CONFIG_KV) {
+          try {
+            const data = await env.SSO_CONFIG_KV.get('sso_global_config');
+            if (data) config = JSON.parse(data);
+          } catch (e) {}
+        }
+        return new Response(JSON.stringify(config || { success: true }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      } else if (request.method === 'POST') {
+        try {
+          const body = await request.json();
+          if (env && env.SSO_CONFIG_KV) {
+            await env.SSO_CONFIG_KV.put('sso_global_config', JSON.stringify(body));
+          }
+          return new Response(JSON.stringify({ success: true, config: body }), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Access-Control-Allow-Origin': '*'
+            }
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: err.message }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json; charset=utf-8' }
+          });
+        }
+      } else if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        });
+      }
+    }
+
+    // 2. 放行静态资源文件、管理后台 (admin.html) 与测试页面
+    if (
+      request.method === 'OPTIONS' ||
+      pathname.endsWith('.css') ||
+      pathname.endsWith('.js') ||
+      pathname.endsWith('.png') ||
+      pathname.endsWith('.jpg') ||
+      pathname.endsWith('.jpeg') ||
+      pathname.endsWith('.ico') ||
+      pathname.endsWith('.svg') ||
+      pathname.endsWith('.json') ||
+      pathname.endsWith('.woff') ||
+      pathname.endsWith('.woff2') ||
+      pathname.includes('client-blog') ||
+      pathname.includes('admin')
+    ) {
+      if (env && env.ASSETS) {
+        return env.ASSETS.fetch(request);
+      }
+      return fetch(request);
+    }
+
+    // 3. 严格参数白名单校验: 携带任何非法/未授权参数立即 400
+    for (const key of url.searchParams.keys()) {
+      if (!ALLOWED_PARAMS.has(key)) {
+        return new Response(GOOGLE_400_HTML, {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'X-Robots-Tag': 'noindex, nofollow'
+          }
+        });
+      }
+    }
+
+    // 4. 泛域名白名单校验 (*.yaoxi.wiki, *.yaoxi.cloud)
+    const targetDomain = url.searchParams.get('target_domain');
+    if (targetDomain && !isAllowedDomain(targetDomain)) {
+      return new Response(GOOGLE_400_HTML, {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'X-Robots-Tag': 'noindex, nofollow'
+        }
+      });
+    }
+
+    // 5. 严格校验 client_request_token 密码学防伪签名
+    const token = url.searchParams.get('client_request_token');
+    const resolvedTarget = targetDomain || 'yaoxi.cloud';
+    const isValidSignature = await verifyCryptographicTokenSignature(token, resolvedTarget);
+
+    if (!isValidSignature) {
+      return new Response(GOOGLE_400_HTML, {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'X-Robots-Tag': 'noindex, nofollow'
+        }
+      });
+    }
+
+    // 6. 密码学验签通过 -> 放行至登录中心页面 (index.html / accounts-login.html)
+    if (env && env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+    return fetch(request);
+  }
+};
