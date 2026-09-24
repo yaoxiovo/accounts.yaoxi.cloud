@@ -428,9 +428,15 @@
             : '<span class="badge badge-neutral">密码登录</span>'}
         </td>
         <td>
-          <span class="badge ${u.status === 'active' ? 'badge-success' : 'badge-danger'}">
-            ${u.status === 'active' ? '正常' : '已冻结'}
-          </span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label class="switch" title="${u.status === 'active' ? '点击冻结该账号' : '点击解冻该账号'}">
+              <input type="checkbox" class="switch-input" ${u.status === 'active' ? 'checked' : ''} onchange="toggleUserStatus('${u.id}', this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+            <span class="badge ${u.status === 'active' ? 'badge-success' : 'badge-danger'}">
+              ${u.status === 'active' ? '正常' : '已冻结'}
+            </span>
+          </div>
         </td>
         <td style="text-align:right;">
           <div style="display:inline-flex; gap:6px;">
@@ -440,6 +446,23 @@
         </td>
       </tr>
     `).join('');
+  };
+
+  window.toggleUserStatus = async function (id, checked) {
+    const u = activeConfig.users.find(x => x.id === id);
+    if (u) {
+      u.status = checked ? 'active' : 'suspended';
+      recordAuditLog('USER_STATUS_TOGGLE', `${checked ? '解冻' : '冻结'} 用户: ${u.username} (${u.email})`);
+      persistLocalConfig();
+      renderUsersTable();
+      renderOverview();
+      const res = await pushRemoteConfig();
+      if (res && res.savedToKv) {
+        showToast(`已${checked ? '解冻' : '冻结'}账号 "${u.username}"，全球全设备即时生效！`, checked ? 'success' : 'warning');
+      } else {
+        showToast(`已${checked ? '解冻' : '冻结'}账号 "${u.username}"`, 'primary');
+      }
+    }
   };
 
   window.toggleUserPwdReveal = function (uid, pwd) {
@@ -502,7 +525,7 @@
     }
   };
 
-  window.submitUserForm = function () {
+  window.submitUserForm = async function () {
     const id = document.getElementById('edit-user-id').value;
     const username = document.getElementById('edit-user-username').value.trim();
     const email = document.getElementById('edit-user-email').value.trim();
@@ -550,31 +573,37 @@
     }
 
     closeModal('modal-user');
-    markChanged();
+    persistLocalConfig();
     renderUsersTable();
     renderOverview();
-    showToast('用户凭证已更新，请点击下方【保存并立即生效】以部署。', 'primary');
+    const res = await pushRemoteConfig();
+    if (res && res.savedToKv) {
+      showToast(`✅ 用户 "${username}" 凭证与状态已同步至 Cloudflare KV！`, 'success');
+    } else {
+      showToast(`用户 "${username}" 凭证已更新`, 'primary');
+    }
   };
 
   window.editUser = function (id) {
     openUserModal(id);
   };
 
-  window.deleteUser = function (id) {
+  window.deleteUser = async function (id) {
     const u = activeConfig.users.find(x => x.id === id);
     if (!u) return;
     if (u.username === 'yaoxi') {
-      alert('主管理员账号 yaoxi 受系统核心保护，禁止删除！');
+      alert('主管理员账号 yaoxi 受系统核心保护，禁止删除！如需停用请选择冻结！');
       return;
     }
     if (!confirm(`确定要注销并删除账号 "${u.username}" 吗？该账号将无法再登录网关！`)) return;
 
     activeConfig.users = activeConfig.users.filter(x => x.id !== id);
     recordAuditLog('USER_DELETE', `删除账号: ${u.username}`);
-    markChanged();
+    persistLocalConfig();
     renderUsersTable();
     renderOverview();
-    showToast('已删除该用户账号', 'neutral');
+    await pushRemoteConfig();
+    showToast('已注销该账号并同步至全球边缘节点', 'neutral');
   };
 
   // ==========================================================================

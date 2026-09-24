@@ -324,8 +324,37 @@ window.addEventListener('message', (event) => {
         const savedToken = localStorage.getItem('yaoxi_client_token');
         if (savedToken) {
           processAndVerifySignature(savedToken, null, null);
+          validateAccountStatus();
         }
       }
+
+      async function validateAccountStatus() {
+        const savedUserStr = localStorage.getItem('yaoxi_client_user');
+        if (!savedUserStr) return;
+        try {
+          const user = JSON.parse(savedUserStr);
+          const res = await fetch(`${SSO_BASE_URL.replace(/accounts-login\.html.*/, '')}api/config?t=${Date.now()}`, { cache: 'no-store' });
+          if (res.ok) {
+            const cfg = await res.json();
+            if (cfg && Array.isArray(cfg.users)) {
+              const sub = (user.sub || '').toLowerCase();
+              const email = (user.email || '').toLowerCase();
+              const matched = cfg.users.find(u => (u.username || '').toLowerCase() === sub || (u.email || '').toLowerCase() === email);
+              if (matched && matched.status !== 'active') {
+                logoutClient();
+                alert('⚠️ 您的账号已在统一身份认证管理中心被冻结，登录态已立即失效！');
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Re-validate user status whenever returning to this tab
+      window.addEventListener('focus', () => {
+        if (localStorage.getItem('yaoxi_client_token')) {
+          validateAccountStatus();
+        }
+      });
 
       // 3. Process & Verify Signature & Claims with Single-Use Invalidation
       function processAndVerifySignature(token, reqToken, sig) {

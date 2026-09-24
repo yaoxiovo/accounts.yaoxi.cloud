@@ -212,6 +212,31 @@
     }
 
     /**
+     * 校验当前登录账号是否已被服务端管理员冻结
+     * @returns {Promise<boolean>} 若已被冻结返回 false 并自动登出，正常返回 true
+     */
+    async validateStatus() {
+      const user = this.getUser();
+      if (!user) return false;
+      try {
+        const res = await fetch(`${this.authUrl}/api/config?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg && Array.isArray(cfg.users)) {
+            const sub = (user.sub || '').toLowerCase();
+            const email = (user.email || '').toLowerCase();
+            const matched = cfg.users.find(u => (u.username || '').toLowerCase() === sub || (u.email || '').toLowerCase() === email);
+            if (matched && matched.status !== 'active') {
+              this.logout();
+              return false;
+            }
+          }
+        }
+      } catch (e) {}
+      return true;
+    }
+
+    /**
      * 获取当前已登录的用户信息 (自动检查 Token 是否过期)
      */
     getUser() {

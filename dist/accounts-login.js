@@ -582,9 +582,8 @@
     const userList = (cfg && Array.isArray(cfg.users)) ? cfg.users : [];
     const inputClean = inputVal.toLowerCase();
 
-    // 1. Check dynamic user list from Admin Console
-    let matchedUser = userList.find(u => {
-      if (u.status !== 'active') return false;
+    // 1. Search across ALL users in userList first (including suspended/frozen accounts)
+    const existingUser = userList.find(u => {
       const uname = (u.username || '').toLowerCase();
       const uemail = (u.email || '').toLowerCase();
       return (
@@ -595,25 +594,37 @@
       );
     });
 
-    // 2. Default fallback yaoxi account
-    if (!matchedUser && (
-      inputClean === 'yaoxi' ||
-      inputClean === 'yaoxiov0' ||
-      inputClean === 'yaoxiovo' ||
-      inputClean === 'yaoxiov0@gmail.com' ||
-      inputClean === 'yaoxiovo@gmail.com' ||
-      inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxi' ||
-      inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxiovo' ||
-      inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxiov0'
-    )) {
-      matchedUser = {
-        username: 'yaoxi',
-        displayName: 'yaoxi',
-        email: inputVal.includes('@') ? inputVal : 'yaoxiov0@gmail.com',
-        password: 'yaoxi',
-        roles: ['admin', 'author', 'super_user'],
-        passkeyBound: true
-      };
+    let matchedUser = null;
+
+    if (existingUser) {
+      if (existingUser.status !== 'active') {
+        showError(DOM.usernameError, '此 Google 帐号已被管理员停用或冻结。详情请咨询您的系统管理员。');
+        if (DOM.inputUsername) DOM.inputUsername.focus();
+        return;
+      }
+      matchedUser = existingUser;
+    } else {
+      // Only fallback if userList is empty AND matches initial fallback pattern
+      if (userList.length === 0 && (
+        inputClean === 'yaoxi' ||
+        inputClean === 'yaoxiov0' ||
+        inputClean === 'yaoxiovo' ||
+        inputClean === 'yaoxiov0@gmail.com' ||
+        inputClean === 'yaoxiovo@gmail.com' ||
+        inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxi' ||
+        inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxiovo' ||
+        inputClean.replace(/@yaoxi\.(cloud|wiki)$/, '') === 'yaoxiov0'
+      )) {
+        matchedUser = {
+          username: 'yaoxi',
+          displayName: 'yaoxi',
+          email: inputVal.includes('@') ? inputVal : 'yaoxiov0@gmail.com',
+          password: 'yaoxi',
+          roles: ['admin', 'author', 'super_user'],
+          passkeyBound: true,
+          status: 'active'
+        };
+      }
     }
 
     if (!matchedUser) {
