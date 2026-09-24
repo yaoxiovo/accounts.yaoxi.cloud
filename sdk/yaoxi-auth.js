@@ -44,6 +44,7 @@
       this.scope = options.scope || 'openid profile email admin';
       this.storagePrefix = 'yaoxi_auth_';
 
+      this._authListeners = [];
       this._messageListener = null;
       this._popupWindow = null;
     }
@@ -270,12 +271,51 @@
     }
 
     /**
+     * 监听用户认证状态变更 (登录 / 登出)
+     * @param {function(user: Object|null): void} callback
+     */
+    onAuthStateChanged(callback) {
+      if (typeof callback === 'function') {
+        this._authListeners.push(callback);
+        // 立即触发一次当前状态
+        callback(this.getUser());
+      }
+    }
+
+    /**
+     * 自动监控账号实时状态 (窗口激活或定时轮询)
+     * @param {function(user: Object): void} [onFrozenCallback] - 账号被冻结时的回调
+     * @param {number} [intervalMs=60000] - 轮询间隔毫秒数
+     * @returns {function(): void} 取消监控的注销函数
+     */
+    watchAccountStatus(onFrozenCallback, intervalMs = 60000) {
+      const check = async () => {
+        if (this.isAuthenticated()) {
+          const valid = await this.validateStatus();
+          if (!valid && typeof onFrozenCallback === 'function') {
+            onFrozenCallback();
+          }
+        }
+      };
+
+      const focusHandler = () => check();
+      window.addEventListener('focus', focusHandler);
+      const timer = setInterval(check, intervalMs);
+
+      return () => {
+        window.removeEventListener('focus', focusHandler);
+        clearInterval(timer);
+      };
+    }
+
+    /**
      * 退出登录并清除本地凭证
      */
     logout() {
       localStorage.removeItem(this.storagePrefix + 'token');
       localStorage.removeItem(this.storagePrefix + 'user');
       localStorage.removeItem(this.storagePrefix + 'exp');
+      this._notifyAuthChanged(null);
     }
 
     /**
@@ -286,6 +326,20 @@
       localStorage.setItem(this.storagePrefix + 'token', token);
       localStorage.setItem(this.storagePrefix + 'user', JSON.stringify(user));
       localStorage.setItem(this.storagePrefix + 'exp', expTime.toString());
+      this._notifyAuthChanged(user);
+    }
+
+    /**
+     * 广播用户状态变更
+     */
+    _notifyAuthChanged(user) {
+      for (const listener of this._authListeners) {
+        try {
+          listener(user);
+        } catch (e) {
+          console.warn('[YaoxiAuth SDK] Auth listener error:', e);
+        }
+      }
     }
 
     /**

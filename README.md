@@ -29,11 +29,27 @@ yaoxi-account/
 │   └── api/config.js          # 统一配置存储与 KV 持久化 API (/api/config)
 ├── cloudflare-worker-400.js   # 备用 Cloudflare Worker 边缘拦截器
 ├── sdk/
-│   └── yaoxi-auth.js          # 统一认证客户端接入 SDK
+│   ├── yaoxi-auth.js          # 统一认证客户端接入 SDK (UMD/ESM/Browser)
+│   └── README.md              # 📖 SDK 官方接入指南 (架构/API/Vue/React/博客接入实战)
 ├── client-blog.html           # 博客接入演示页面 (展示 SDK 跨域握手与回传)
 ├── push_to_github.sh          # 🚀 GitHub 快速推送脚本
 └── README.md                  # 架构说明与集成文档
 ```
+
+---
+
+## 📦 官方 SDK 接入指南 (SDK Documentation)
+
+> 💡 **详细接入指引已独立成册，请查阅完整官方文档：[sdk/README.md](./sdk/README.md)**
+
+YaoxiAuth SDK 提供了类似于 Google Identity Services (GSI) 的开箱即用集成体验：
+
+- 🚀 **极速接入**: 1 行 CDN 脚本或 npm 引入，3 分钟跑通登录流程。
+- 🪟 **双交互模式**:
+  - **Popup 模式 (推荐)**: 居中拉起 1060×620 浮动认证窗口，通过 `postMessage` 零跳转回传，保持当前阅读状态。
+  - **Redirect 模式**: 经典全页跳转，URL Hash (`#access_token=...`) 安全回传。
+- 🛡️ **实时状态监控**: 内置 `watchAccountStatus()` 心跳与切屏监听，当用户在后台被冻结时，全端毫秒级同步下线与销毁凭证。
+- 💻 **全框架支持**: 提供 Vanilla JS、Vue 3 (Composition API)、React、Hexo/Hugo 博客实战范例。
 
 ---
 
