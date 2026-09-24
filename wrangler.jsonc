@@ -12,6 +12,12 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "single-page-application"
   },
+  "kv_namespaces": [
+    {
+      "binding": "SSO_CONFIG_KV",
+      "id": "8ac44746ffad49649b47f13347cb67b5"
+    }
+  ],
   "build": {
     "command": "node build.js"
   }

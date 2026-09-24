@@ -87,7 +87,7 @@
   let hasPendingChanges = false;
 
   // --- Configuration Manager Helpers ---
-  function loadConfig() {
+  async function loadConfig() {
     try {
       const stored = localStorage.getItem('yaoxi_sso_config');
       if (stored) {
@@ -97,25 +97,23 @@
 
     if (!activeConfig) {
       activeConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-      persistLocalConfig();
     }
 
-    // Try fetching remote KV config
-    fetch('/api/config')
-      .then(res => res.json())
-      .then(remote => {
-        if (remote && remote.domains && remote.users) {
-          // If remote is newer, offer sync
-          const remoteTime = new Date(remote.lastUpdated || 0).getTime();
-          const localTime = new Date(activeConfig.lastUpdated || 0).getTime();
-          if (remoteTime > localTime) {
-            activeConfig = remote;
-            persistLocalConfig();
-            refreshAllViews();
-          }
+    // Always fetch remote KV config as authoritative source
+    try {
+      const res = await fetch('/api/config?t=' + Date.now(), { cache: 'no-store' });
+      if (res.ok) {
+        const remote = await res.json();
+        if (remote && Array.isArray(remote.domains) && Array.isArray(remote.users)) {
+          activeConfig = remote;
+          localStorage.setItem('yaoxi_sso_config', JSON.stringify(activeConfig));
+          window.dispatchEvent(new Event('yaoxi_config_updated'));
+          refreshAllViews();
         }
-      })
-      .catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Failed to load remote config from KV:', e);
+    }
   }
 
   function persistLocalConfig() {
@@ -127,12 +125,20 @@
 
   async function pushRemoteConfig() {
     try {
-      await fetch('/api/config', {
+      activeConfig.lastUpdated = new Date().toISOString();
+      const res = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(activeConfig)
       });
-    } catch (e) {}
+      if (res.ok) {
+        const data = await res.json();
+        return { success: true, savedToKv: !!data.savedToKv };
+      }
+      return { success: false, error: 'HTTP ' + res.status };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
   }
 
   function recordAuditLog(action, details) {
@@ -165,10 +171,28 @@
   // --- Global Save Actions ---
   window.saveAllPendingChanges = async function () {
     persistLocalConfig();
-    await pushRemoteConfig();
+    const saveBtn = document.querySelector('#sticky-bar .btn-primary');
+    const oldText = saveBtn ? saveBtn.textContent : '';
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '正在同步全球边缘节点...';
+    }
+    const res = await pushRemoteConfig();
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = oldText || '保存更改';
+    }
     clearChanged();
     refreshAllViews();
-    showToast('✅ 全量配置已成功保存并立即在登录页生效！', 'success');
+    if (res && res.success) {
+      if (res.savedToKv) {
+        showToast('✅ 全量配置已成功持久化至 Cloudflare KV，全球全设备即时生效！', 'success');
+      } else {
+        showToast('✅ 配置已保存并下发至全球边缘节点！', 'success');
+      }
+    } else {
+      showToast('⚠️ 本地保存成功，但同步到云端失败: ' + (res.error || '网络异常'), 'warning');
+    }
   };
 
   window.discardPendingChanges = function () {

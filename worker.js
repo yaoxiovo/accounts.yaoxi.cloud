@@ -167,12 +167,87 @@ async function verifyCryptographicTokenSignature(token, targetDomain = 'yaoxi.cl
   }
 }
 
+const DEFAULT_CONFIG = {
+  version: "1.0.0",
+  lastUpdated: new Date().toISOString(),
+  security: {
+    ssoIssuer: "https://accounts.yaoxi.cloud",
+    handshakeSecret: "yaoxi_sso_handshake_secret_key_v1_auth_guard_2026",
+    tokenTtl: 7200,
+    kid: "yaoxi_cloud_sso_2026",
+    preventReplay: true,
+    strictWhitelist: true
+  },
+  turnstile: {
+    enabled: true,
+    siteKey: "0x4AAAAAAEXamT3iIRWjGCmk",
+    secretKey: ""
+  },
+  branding: {
+    systemTitle: "Google 帐号 - 统一身份认证",
+    welcomeTitle: "欢迎",
+    bannerNotice: "不妨选择“试试其他方式”，改用通行密钥更轻松更安全地登录",
+    defaultTheme: "light",
+    defaultLang: "zh-CN",
+    showPasswordToggle: true
+  },
+  domains: [
+    { id: "dom_1", name: "耀西极客博客", pattern: "*.yaoxi.wiki", type: "wildcard", enabled: true, createdAt: "2026-09-24" },
+    { id: "dom_2", name: "耀西云全子域", pattern: "*.yaoxi.cloud", type: "wildcard", enabled: true, createdAt: "2026-09-24" },
+    { id: "dom_3", name: "本地开发测试", pattern: "localhost", type: "exact", enabled: true, createdAt: "2026-09-24" },
+    { id: "dom_4", name: "本地回环地址", pattern: "127.0.0.1", type: "exact", enabled: true, createdAt: "2026-09-24" }
+  ],
+  users: [
+    {
+      id: "usr_yaoxi",
+      username: "yaoxi",
+      displayName: "耀西 (Super Admin)",
+      email: "yaoxiov0@gmail.com",
+      password: "yaoxi",
+      roles: ["admin", "author", "super_user"],
+      status: "active",
+      passkeyBound: true,
+      lastLogin: new Date().toISOString()
+    }
+  ],
+  clients: [
+    {
+      id: "cli_1",
+      clientId: "yaoxi-blog",
+      clientName: "耀西极客博客",
+      targetDomain: "blog.yaoxi.wiki",
+      redirectUri: "https://blog.yaoxi.wiki",
+      scope: "openid profile email admin",
+      enabled: true
+    },
+    {
+      id: "cli_2",
+      clientId: "yaoxi-app",
+      clientName: "耀西云全平台默认客户端",
+      targetDomain: "yaoxi.cloud",
+      redirectUri: "https://accounts.yaoxi.cloud",
+      scope: "openid profile email",
+      enabled: true
+    }
+  ],
+  auditLogs: [
+    {
+      id: "log_init",
+      timestamp: new Date().toISOString(),
+      action: "SYSTEM_INIT",
+      operator: "system",
+      details: "统一身份认证管理面板 Cloudflare KV 持久化已绑定就绪",
+      ip: "127.0.0.1"
+    }
+  ]
+};
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const pathname = url.pathname.toLowerCase();
 
-    // 1. API 接口: /api/config
+    // 1. API 接口: /api/config (Cloudflare KV 全球持久化存储)
     if (pathname === '/api/config') {
       if (request.method === 'GET') {
         let config = null;
@@ -182,21 +257,38 @@ export default {
             if (data) config = JSON.parse(data);
           } catch (e) {}
         }
-        return new Response(JSON.stringify(config || { success: true }), {
+        if (!config) {
+          config = DEFAULT_CONFIG;
+          if (env && env.SSO_CONFIG_KV) {
+            try {
+              await env.SSO_CONFIG_KV.put('sso_global_config', JSON.stringify(DEFAULT_CONFIG));
+            } catch (e) {}
+          }
+        }
+        return new Response(JSON.stringify(config), {
           status: 200,
           headers: {
             'Content-Type': 'application/json; charset=utf-8',
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
             'Access-Control-Allow-Origin': '*'
           }
         });
       } else if (request.method === 'POST') {
         try {
           const body = await request.json();
+          if (!body || typeof body !== 'object') {
+            return new Response(JSON.stringify({ success: false, error: '无效的配置格式' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }
+            });
+          }
+          body.lastUpdated = new Date().toISOString();
+          let savedToKv = false;
           if (env && env.SSO_CONFIG_KV) {
             await env.SSO_CONFIG_KV.put('sso_global_config', JSON.stringify(body));
+            savedToKv = true;
           }
-          return new Response(JSON.stringify({ success: true, config: body }), {
+          return new Response(JSON.stringify({ success: true, savedToKv, config: body }), {
             status: 200,
             headers: {
               'Content-Type': 'application/json; charset=utf-8',
@@ -206,7 +298,7 @@ export default {
         } catch (err) {
           return new Response(JSON.stringify({ success: false, error: err.message }), {
             status: 400,
-            headers: { 'Content-Type': 'application/json; charset=utf-8' }
+            headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }
           });
         }
       } else if (request.method === 'OPTIONS') {

@@ -13,25 +13,58 @@
 (function () {
   'use strict';
 
-  // --- Dynamic Configuration Manager (Live Sync with Admin Panel) ---
+  // --- Dynamic Configuration Manager (Live Sync with Cloudflare KV & Admin Panel) ---
+  let inMemoryConfig = null;
+
   function getDynamicConfig() {
+    if (inMemoryConfig) return inMemoryConfig;
     try {
       const stored = localStorage.getItem('yaoxi_sso_config');
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        inMemoryConfig = JSON.parse(stored);
+        return inMemoryConfig;
+      }
     } catch (e) {}
     return null;
   }
 
-  const dynCfg = getDynamicConfig();
-  const SSO_ISSUER = (dynCfg && dynCfg.security && dynCfg.security.ssoIssuer)
-    ? dynCfg.security.ssoIssuer
-    : 'https://accounts.yaoxi.cloud';
-  const SSO_HANDSHAKE_SECRET = (dynCfg && dynCfg.security && dynCfg.security.handshakeSecret)
-    ? dynCfg.security.handshakeSecret
-    : 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
-  const CF_TURNSTILE_SITEKEY = (dynCfg && dynCfg.turnstile && dynCfg.turnstile.siteKey)
-    ? dynCfg.turnstile.siteKey
-    : (window.CF_TURNSTILE_SITEKEY || '0x4AAAAAAEXamT3iIRWjGCmk');
+  async function syncServerConfig() {
+    try {
+      const res = await fetch('/api/config?t=' + Date.now(), { cache: 'no-store' });
+      if (res.ok) {
+        const remote = await res.json();
+        if (remote && Array.isArray(remote.domains) && Array.isArray(remote.users)) {
+          inMemoryConfig = remote;
+          try {
+            localStorage.setItem('yaoxi_sso_config', JSON.stringify(remote));
+          } catch (e) {}
+          return remote;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function getSsoIssuer() {
+    const cfg = getDynamicConfig();
+    return (cfg && cfg.security && cfg.security.ssoIssuer)
+      ? cfg.security.ssoIssuer
+      : 'https://accounts.yaoxi.cloud';
+  }
+
+  function getHandshakeSecret() {
+    const cfg = getDynamicConfig();
+    return (cfg && cfg.security && cfg.security.handshakeSecret)
+      ? cfg.security.handshakeSecret
+      : 'yaoxi_sso_handshake_secret_key_v1_auth_guard_2026';
+  }
+
+  function getTurnstileSiteKey() {
+    const cfg = getDynamicConfig();
+    return (cfg && cfg.turnstile && cfg.turnstile.siteKey)
+      ? cfg.turnstile.siteKey
+      : (window.CF_TURNSTILE_SITEKEY || '0x4AAAAAAEXamT3iIRWjGCmk');
+  }
 
   let activeUserSession = null;
 
@@ -217,7 +250,7 @@
       const enc = new TextEncoder();
       const key = await crypto.subtle.importKey(
         'raw',
-        enc.encode(SSO_HANDSHAKE_SECRET),
+        enc.encode(getHandshakeSecret()),
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         ['sign']
@@ -240,6 +273,9 @@
   // --- Initializer ---
   async function init() {
     const DOM = getDOM();
+
+    // 0. Proactively sync configuration from Cloudflare KV
+    await syncServerConfig();
 
     // ========================================================================
     // REQUIREMENT: Strict URL Parameter Whitelisting (Any unauthorized param -> 400)
@@ -406,7 +442,7 @@
 
   function initCloudflareTurnstile() {
     const DOM = getDOM();
-    const sitekey = urlParams.get('cf_sitekey') || CF_TURNSTILE_SITEKEY;
+    const sitekey = urlParams.get('cf_sitekey') || getTurnstileSiteKey();
 
     if (window.turnstile && DOM.cfTurnstileBox && !cfWidgetId) {
       try {
@@ -520,7 +556,7 @@
   // ==========================================================================
   // Step 1: Username Validation (Zero Privacy Leak)
   // ==========================================================================
-  function handleUsernameSubmit() {
+  async function handleUsernameSubmit() {
     const DOM = getDOM();
     clearError(DOM.usernameError);
 
@@ -538,7 +574,11 @@
       return;
     }
 
-    const cfg = getDynamicConfig();
+    let cfg = getDynamicConfig();
+    if (!cfg || !Array.isArray(cfg.users) || cfg.users.length === 0) {
+      await syncServerConfig();
+      cfg = getDynamicConfig();
+    }
     const userList = (cfg && Array.isArray(cfg.users)) ? cfg.users : [];
     const inputClean = inputVal.toLowerCase();
 
@@ -824,7 +864,7 @@
     try {
       const messagePayload = {
         type: 'YAOXI_SSO_SIGNATURE_CALLBACK',
-        source: SSO_ISSUER,
+        source: getSsoIssuer(),
         client_request_token: OAuthParams.clientRequestToken,
         signed_token: jwtToken,
         signature: signature,

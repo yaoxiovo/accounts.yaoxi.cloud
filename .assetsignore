@@ -10,3 +10,4 @@ worker.js
 wrangler.jsonc
 build.js
 README.md
+.wrangler
